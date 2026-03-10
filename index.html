@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SGLang AMD Cookbook</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            amd: { red: '#ED1C24', dark: '#1a1a2e', darker: '#0f0f1e' },
+            surface: { 1: '#1e1e30', 2: '#252540', 3: '#2d2d4a' }
+          },
+          fontFamily: {
+            display: ['"JetBrains Mono"', 'monospace'],
+            body: ['"Inter"', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body { background: #0f0f1e; font-family: 'Inter', system-ui, sans-serif; }
+    pre[class*="language-"] { margin: 0; border-radius: 0 0 0.5rem 0.5rem; font-size: 0.82rem; }
+    code[class*="language-"] { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; }
+    .code-block-wrapper { position: relative; }
+    .copy-btn {
+      position: absolute; top: 0.5rem; right: 0.5rem; z-index: 10;
+      padding: 0.25rem 0.6rem; border-radius: 0.375rem;
+      background: rgba(255,255,255,0.08); color: #aaa; border: 1px solid rgba(255,255,255,0.1);
+      font-size: 0.7rem; cursor: pointer; transition: all 0.15s;
+      font-family: 'Inter', sans-serif;
+    }
+    .copy-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+    .copy-btn.copied { background: #22c55e33; color: #22c55e; border-color: #22c55e55; }
+    .tab-btn { transition: all 0.15s; }
+    .tab-btn.active { background: #ED1C24; color: white; }
+    .tab-btn:not(.active) { background: rgba(255,255,255,0.05); color: #999; }
+    .tab-btn:not(.active):hover { background: rgba(255,255,255,0.1); color: #ccc; }
+    .model-section { display: none; }
+    .model-section.active { display: block; }
+    .tp-toggle { cursor: pointer; user-select: none; }
+    .tp-toggle.active { border-color: #ED1C24; background: #ED1C2415; }
+    .bench-row:nth-child(even) { background: rgba(255,255,255,0.02); }
+    .glow { box-shadow: 0 0 40px rgba(237, 28, 36, 0.08); }
+    nav a { transition: color 0.15s; }
+    nav a:hover { color: #ED1C24; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0f0f1e; }
+    ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+  </style>
+</head>
+<body class="text-gray-300 min-h-screen">
+
+<!-- Navigation -->
+<nav class="fixed top-0 w-full z-50 bg-[#0f0f1eee] backdrop-blur border-b border-white/5">
+  <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-2 h-2 rounded-full bg-[#ED1C24]"></div>
+      <span class="font-display font-semibold text-white text-sm tracking-wide">SGLang AMD Cookbook</span>
+    </div>
+    <div class="hidden md:flex items-center gap-6 text-xs text-gray-500">
+      <a href="#prerequisites">Prerequisites</a>
+      <a href="#models">Models</a>
+      <a href="#benchmarking">Benchmarking</a>
+      <a href="#references">References</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<header class="pt-28 pb-16 px-6">
+  <div class="max-w-6xl mx-auto">
+    <div class="inline-block px-3 py-1 rounded-full bg-[#ED1C2418] border border-[#ED1C2430] text-[#ED1C24] text-xs font-medium mb-6">
+      MI355X &middot; ROCm 7.x &middot; SGLang
+    </div>
+    <h1 class="text-4xl md:text-5xl font-bold text-white mb-4 leading-tight">
+      SGLang AMD<br>Cookbook
+    </h1>
+    <p class="text-gray-500 max-w-xl text-lg leading-relaxed">
+      Copy-paste ready commands for deploying and benchmarking
+      <span class="text-gray-300">Qwen3.5</span>,
+      <span class="text-gray-300">Kimi-K2.5</span>, and
+      <span class="text-gray-300">GLM-5</span>
+      on AMD Instinct MI355X GPUs.
+    </p>
+    <div class="mt-8 flex flex-wrap gap-3">
+      <div class="px-3 py-1.5 rounded-lg bg-surface-1 border border-white/5 text-xs">
+        <span class="text-gray-500">Hardware:</span> <span class="text-white">8&times; MI355X (288GB HBM3E each)</span>
+      </div>
+      <div class="px-3 py-1.5 rounded-lg bg-surface-1 border border-white/5 text-xs">
+        <span class="text-gray-500">Memory BW:</span> <span class="text-white">8 TB/s per GPU</span>
+      </div>
+      <div class="px-3 py-1.5 rounded-lg bg-surface-1 border border-white/5 text-xs">
+        <span class="text-gray-500">Updated:</span> <span class="text-white">March 2026</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Prerequisites -->
+<section id="prerequisites" class="py-12 px-6">
+  <div class="max-w-6xl mx-auto">
+    <h2 class="text-2xl font-bold text-white mb-8">Prerequisites</h2>
+
+    <div class="grid md:grid-cols-2 gap-6">
+      <!-- System Prep -->
+      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 glow">
+        <h3 class="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#ED1C24]"></span>
+          System Preparation
+        </h3>
+        <p class="text-xs text-gray-500 mb-4">Disable NUMA balancing for optimal GPU performance.</p>
+        <div class="code-block-wrapper">
+          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <pre class="language-bash"><code>sudo sh -c 'echo 0 > /proc/sys/kernel/numa_balancing'
+# Verify
+cat /proc/sys/kernel/numa_balancing  # Should output 0</code></pre>
+        </div>
+      </div>
+
+      <!-- Model Paths -->
+      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 glow">
+        <h3 class="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#ED1C24]"></span>
+          Model Weight Paths
+        </h3>
+        <p class="text-xs text-gray-500 mb-4">Common HF cache locations on this machine.</p>
+        <div class="space-y-2 text-xs font-display">
+          <div class="flex items-start gap-2 p-2 rounded bg-surface-2">
+            <span class="text-gray-500 shrink-0">Qwen3.5:</span>
+            <span class="text-green-400 break-all">/mnt/dcgpuval/huggingface/hub/models--Qwen--Qwen3.5-397B-A17B/</span>
+          </div>
+          <div class="flex items-start gap-2 p-2 rounded bg-surface-2">
+            <span class="text-gray-500 shrink-0">Kimi-K2.5:</span>
+            <span class="text-yellow-400 break-all">moonshotai/Kimi-K2.5</span>
+            <span class="text-gray-600 text-[10px]">(download on first use)</span>
+          </div>
+          <div class="flex items-start gap-2 p-2 rounded bg-surface-2">
+            <span class="text-gray-500 shrink-0">GLM-5:</span>
+            <span class="text-blue-400 break-all">zai-org/GLM-5-FP8</span>
+            <span class="text-gray-600 text-[10px]">(download on first use)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Docker Images -->
+      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 glow md:col-span-2">
+        <h3 class="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#ED1C24]"></span>
+          Docker Images
+        </h3>
+        <p class="text-xs text-gray-500 mb-4">Pull the appropriate ROCm container for MI355X before starting.</p>
+        <div class="code-block-wrapper">
+          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <pre class="language-bash"><code># Recommended image (ROCm 7.0, MI355X optimized, SGLang v0.5.8.post1)
+docker pull rocm/sgl-dev:v0.5.8.post1-rocm700-mi35x-20260219
+
+# Alternative: official SGLang image
+docker pull lmsysorg/sglang:v0.4.9.post2-rocm700-mi35x</code></pre>
+        </div>
+        <div class="mt-4 code-block-wrapper">
+          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; launch container</div>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <pre class="language-bash"><code>export HF_CACHE=/mnt/dcgpuval/huggingface
+docker run -it \
+    --ipc=host \
+    --network=host \
+    --privileged \
+    --shm-size 32G \
+    --cap-add=CAP_SYS_ADMIN \
+    --device=/dev/kfd \
+    --device=/dev/dri \
+    --group-add video \
+    --cap-add=SYS_PTRACE \
+    --security-opt seccomp=unconfined \
+    --security-opt apparmor=unconfined \
+    -v $HF_CACHE:/root/.cache/huggingface \
+    rocm/sgl-dev:v0.5.8.post1-rocm700-mi35x-20260219</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Model Deployment Section -->
+<section id="models" class="py-12 px-6">
+  <div class="max-w-6xl mx-auto">
+    <h2 class="text-2xl font-bold text-white mb-2">Model Deployment</h2>
+    <p class="text-sm text-gray-500 mb-8">Select a model below to see its launch configuration for both TP=4 and TP=8.</p>
+
+    <!-- Model Tabs -->
+    <div class="flex gap-2 mb-8 flex-wrap">
+      <button class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium" onclick="switchModel('qwen35')" id="tab-qwen35">
+        Qwen3.5-397B-A17B
+      </button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium" onclick="switchModel('kimi')" id="tab-kimi">
+        Kimi-K2.5
+      </button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium" onclick="switchModel('glm5')" id="tab-glm5">
+        GLM-5-FP8
+      </button>
+    </div>
+
+    <!-- ==================== QWEN 3.5 ==================== -->
+    <div id="model-qwen35" class="model-section active">
+      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
+        <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+          <div>
+            <h3 class="text-lg font-bold text-white">Qwen3.5-397B-A17B</h3>
+            <p class="text-xs text-gray-500 mt-1">Mixture-of-Experts &mdash; 397B total params, 17B active per token</p>
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            <span class="px-2 py-0.5 rounded text-[10px] bg-purple-500/15 text-purple-400 border border-purple-500/20">MoE</span>
+            <span class="px-2 py-0.5 rounded text-[10px] bg-blue-500/15 text-blue-400 border border-blue-500/20">BF16</span>
+            <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 border border-green-500/20">752 GB</span>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-6">
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">HF Path</div>
+            <div class="text-white font-display mt-1">Qwen/Qwen3.5-397B-A17B</div>
+          </div>
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">Best Throughput</div>
+            <div class="text-white font-display mt-1">3,926 tok/s (TP8)</div>
+          </div>
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">Attention Backend</div>
+            <div class="text-white font-display mt-1">aiter / triton</div>
+          </div>
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">Max KV Tokens</div>
+            <div class="text-white font-display mt-1">4.4M (TP8)</div>
+          </div>
+        </div>
+
+        <!-- Triton Patch -->
+        <div class="bg-yellow-500/5 border border-yellow-500/15 rounded-lg p-4 mb-6">
+          <div class="text-xs font-semibold text-yellow-400 mb-2">Required: Triton kpack gfx950 Patch</div>
+          <p class="text-xs text-gray-500 mb-3">The MI355X (gfx950) architecture requires a triton attention kernel patch for correct behavior.</p>
+          <div class="code-block-wrapper">
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre class="language-bash"><code>cd /sgl-workspace/sglang
+wget https://raw.githubusercontent.com/Vivicai1005/triton_feature/main/feature.patch
+git apply feature.patch</code></pre>
+          </div>
+        </div>
+
+        <!-- TP=8 Launch -->
+        <div class="mb-6">
+          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded bg-[#ED1C24]/15 text-[#ED1C24] text-[10px] font-display">TP=8</span>
+            Launch Server (Recommended)
+          </h4>
+
+          <div class="space-y-4">
+            <div>
+              <div class="text-xs text-gray-500 mb-2">Option A &mdash; AITER backend (best throughput)</div>
+              <div class="code-block-wrapper">
+                <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                <pre class="language-bash"><code>python3 -m sglang.launch_server \
+    --model-path Qwen/Qwen3.5-397B-A17B \
+    --tp 8 \
+    --attention-backend aiter \
+    --mem-fraction-static 0.80 \
+    --max-mamba-cache-size 128 \
+    --port 30000</code></pre>
+              </div>
+            </div>
+
+            <div>
+              <div class="text-xs text-gray-500 mb-2">Option B &mdash; Triton backend (more stable)</div>
+              <div class="code-block-wrapper">
+                <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                <pre class="language-bash"><code>python3 -m sglang.launch_server \
+    --model-path Qwen/Qwen3.5-397B-A17B \
+    --tp 8 \
+    --attention-backend triton \
+    --mem-fraction-static 0.75 \
+    --disable-cuda-graph \
+    --watchdog-timeout 1200 \
+    --port 30000</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TP=4 Launch -->
+        <div>
+          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded bg-gray-500/15 text-gray-400 text-[10px] font-display">TP=4</span>
+            Launch Server (4 GPUs)
+          </h4>
+          <p class="text-xs text-gray-500 mb-3">752GB model fits in 4&times;288GB = 1,152GB. Reduces KV cache headroom to ~35%.</p>
+          <div class="code-block-wrapper">
+            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre class="language-bash"><code>HIP_VISIBLE_DEVICES=0,1,2,3 python3 -m sglang.launch_server \
+    --model-path Qwen/Qwen3.5-397B-A17B \
+    --tp 4 \
+    --attention-backend triton \
+    --mem-fraction-static 0.70 \
+    --disable-cuda-graph \
+    --watchdog-timeout 1200 \
+    --port 30000</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Verification -->
+      <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
+        <h4 class="text-sm font-semibold text-white mb-4">Verification</h4>
+        <div class="code-block-wrapper">
+          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <pre class="language-bash"><code># Health check
+curl http://localhost:30000/health
+
+# List models
+curl http://localhost:30000/v1/models | python3 -m json.tool
+
+# Quick inference test
+curl -s http://localhost:30000/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{
+      "model": "Qwen/Qwen3.5-397B-A17B",
+      "messages": [{"role": "user", "content": "Hello, who are you?"}],
+      "max_tokens": 64
+    }' | python3 -m json.tool</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== KIMI K2.5 ==================== -->
+    <div id="model-kimi" class="model-section">
+      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
+        <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+          <div>
+            <h3 class="text-lg font-bold text-white">Kimi-K2.5</h3>
+            <p class="text-xs text-gray-500 mt-1">Mixture-of-Experts &mdash; 1T total params, 32B active per token, W4A16 quantized</p>
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            <span class="px-2 py-0.5 rounded text-[10px] bg-purple-500/15 text-purple-400 border border-purple-500/20">MoE</span>
+            <span class="px-2 py-0.5 rounded text-[10px] bg-orange-500/15 text-orange-400 border border-orange-500/20">W4A16</span>
+            <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 border border-green-500/20">~500 GB</span>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-6">
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">HF Path</div>
+            <div class="text-white font-display mt-1">moonshotai/Kimi-K2.5</div>
+          </div>
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">Experts</div>
+            <div class="text-white font-display mt-1">384 total, 8 selected</div>
+          </div>
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">Context Length</div>
+            <div class="text-white font-display mt-1">256K tokens</div>
+          </div>
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">Day-0 PR</div>
+            <div class="text-white font-display mt-1"><a href="https://github.com/sgl-project/sglang/pull/17863" class="text-[#ED1C24] hover:underline">#17863</a></div>
+          </div>
+        </div>
+
+        <!-- Triton Patch -->
+        <div class="bg-yellow-500/5 border border-yellow-500/15 rounded-lg p-4 mb-6">
+          <div class="text-xs font-semibold text-yellow-400 mb-2">Required: Triton kpack gfx950 Patch</div>
+          <p class="text-xs text-gray-500 mb-3">Same gfx950 patch as Qwen3.5. Apply once per container.</p>
+          <div class="code-block-wrapper">
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre class="language-bash"><code>cd /sgl-workspace/sglang
+wget https://raw.githubusercontent.com/Vivicai1005/triton_feature/main/feature.patch
+git apply feature.patch</code></pre>
+          </div>
+        </div>
+
+        <!-- TP=8 Launch -->
+        <div class="mb-6">
+          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded bg-[#ED1C24]/15 text-[#ED1C24] text-[10px] font-display">TP=8</span>
+            Launch Server (Recommended)
+          </h4>
+          <div class="code-block-wrapper">
+            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre class="language-bash"><code>python3 -m sglang.launch_server \
+    --model-path moonshotai/Kimi-K2.5 \
+    --served-model-name kimi-k2.5 \
+    --tp 8 \
+    --trust-remote-code \
+    --mem-fraction-static 0.80 \
+    --port 30000</code></pre>
+          </div>
+        </div>
+
+        <!-- TP=4 Launch -->
+        <div>
+          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded bg-gray-500/15 text-gray-400 text-[10px] font-display">TP=4</span>
+            Launch Server (4 GPUs)
+          </h4>
+          <p class="text-xs text-gray-500 mb-3">W4A16 model (~500GB) fits comfortably in 4&times;288GB = 1,152GB.</p>
+          <div class="code-block-wrapper">
+            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre class="language-bash"><code>HIP_VISIBLE_DEVICES=0,1,2,3 python3 -m sglang.launch_server \
+    --model-path moonshotai/Kimi-K2.5 \
+    --served-model-name kimi-k2.5 \
+    --tp 4 \
+    --trust-remote-code \
+    --mem-fraction-static 0.75 \
+    --port 30000</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Verification -->
+      <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
+        <h4 class="text-sm font-semibold text-white mb-4">Verification</h4>
+        <div class="code-block-wrapper">
+          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <pre class="language-bash"><code># Health check
+curl http://localhost:30000/health
+
+# List models
+curl http://localhost:30000/v1/models | python3 -m json.tool
+
+# Quick inference test
+curl -s http://localhost:30000/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{
+      "model": "kimi-k2.5",
+      "messages": [{"role": "user", "content": "Hello, who are you?"}],
+      "max_tokens": 64
+    }' | python3 -m json.tool</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== GLM-5 ==================== -->
+    <div id="model-glm5" class="model-section">
+      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
+        <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+          <div>
+            <h3 class="text-lg font-bold text-white">GLM-5-FP8</h3>
+            <p class="text-xs text-gray-500 mt-1">MoE + Native Sparse Attention (NSA) &mdash; 744B total params, 40B active, DeepSeek-V2 architecture</p>
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            <span class="px-2 py-0.5 rounded text-[10px] bg-purple-500/15 text-purple-400 border border-purple-500/20">MoE</span>
+            <span class="px-2 py-0.5 rounded text-[10px] bg-cyan-500/15 text-cyan-400 border border-cyan-500/20">NSA</span>
+            <span class="px-2 py-0.5 rounded text-[10px] bg-teal-500/15 text-teal-400 border border-teal-500/20">FP8</span>
+            <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 border border-green-500/20">~744 GB</span>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-6">
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">HF Path</div>
+            <div class="text-white font-display mt-1">zai-org/GLM-5-FP8</div>
+          </div>
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">Model Type</div>
+            <div class="text-white font-display mt-1">glm_moe_dsa</div>
+          </div>
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">NSA Backend</div>
+            <div class="text-white font-display mt-1">tilelang</div>
+          </div>
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">Day-0 PR</div>
+            <div class="text-white font-display mt-1"><a href="https://github.com/sgl-project/sglang/pull/18911" class="text-[#ED1C24] hover:underline">#18911</a></div>
+          </div>
+        </div>
+
+        <!-- Config Patch -->
+        <div class="bg-yellow-500/5 border border-yellow-500/15 rounded-lg p-4 mb-6">
+          <div class="text-xs font-semibold text-yellow-400 mb-2">Required: glm_moe_dsa Config Registration Patch</div>
+          <p class="text-xs text-gray-500 mb-3">GLM-5 uses a <code class="text-yellow-400/80">glm_moe_dsa</code> model type that HuggingFace Transformers doesn&rsquo;t recognize natively.
+            This is registered in SGLang&rsquo;s config loader (included in recent SGLang builds). Ensure your SGLang version includes the fix from PR
+            <a href="https://github.com/sgl-project/sglang/pull/18911" class="text-[#ED1C24] hover:underline">#18911</a>.</p>
+          <div class="code-block-wrapper">
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre class="language-bash"><code># Ensure latest transformers (for GLM-5 tokenizer support)
+pip install --upgrade transformers</code></pre>
+          </div>
+        </div>
+
+        <!-- TP=8 Launch -->
+        <div class="mb-6">
+          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded bg-[#ED1C24]/15 text-[#ED1C24] text-[10px] font-display">TP=8</span>
+            Launch Server (Recommended)
+          </h4>
+          <div class="code-block-wrapper">
+            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre class="language-bash"><code>python3 -m sglang.launch_server \
+    --model-path zai-org/GLM-5-FP8 \
+    --served-model-name glm-5-fp8 \
+    --tp 8 \
+    --tool-call-parser glm47 \
+    --reasoning-parser glm45 \
+    --mem-fraction-static 0.80 \
+    --nsa-prefill-backend tilelang \
+    --nsa-decode-backend tilelang \
+    --chunked-prefill-size 131072 \
+    --watchdog-timeout 1200 \
+    --port 30000</code></pre>
+          </div>
+        </div>
+
+        <!-- TP=4 Launch -->
+        <div>
+          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded bg-gray-500/15 text-gray-400 text-[10px] font-display">TP=4</span>
+            Launch Server (4 GPUs)
+          </h4>
+          <div class="bg-orange-500/5 border border-orange-500/15 rounded-lg p-3 mb-3">
+            <p class="text-xs text-orange-400">Tight fit: 744GB model in 1,152GB. Reduce <code>--mem-fraction-static</code> to leave room for KV cache. TP=8 strongly recommended for GLM-5.</p>
+          </div>
+          <div class="code-block-wrapper">
+            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre class="language-bash"><code>HIP_VISIBLE_DEVICES=0,1,2,3 python3 -m sglang.launch_server \
+    --model-path zai-org/GLM-5-FP8 \
+    --served-model-name glm-5-fp8 \
+    --tp 4 \
+    --tool-call-parser glm47 \
+    --reasoning-parser glm45 \
+    --mem-fraction-static 0.60 \
+    --nsa-prefill-backend tilelang \
+    --nsa-decode-backend tilelang \
+    --chunked-prefill-size 131072 \
+    --disable-cuda-graph \
+    --watchdog-timeout 1200 \
+    --port 30000</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Verification -->
+      <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
+        <h4 class="text-sm font-semibold text-white mb-4">Verification</h4>
+        <div class="code-block-wrapper">
+          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <pre class="language-bash"><code># Health check
+curl http://localhost:30000/health
+
+# List models
+curl http://localhost:30000/v1/models | python3 -m json.tool
+
+# Quick inference test
+curl -s http://localhost:30000/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{
+      "model": "glm-5-fp8",
+      "messages": [{"role": "user", "content": "Hello, who are you?"}],
+      "max_tokens": 64
+    }' | python3 -m json.tool</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Benchmarking Section -->
+<section id="benchmarking" class="py-12 px-6">
+  <div class="max-w-6xl mx-auto">
+    <h2 class="text-2xl font-bold text-white mb-2">Benchmarking</h2>
+    <p class="text-sm text-gray-500 mb-8">
+      Use <code class="text-gray-400 bg-surface-2 px-1.5 py-0.5 rounded text-xs font-display">bench_one_batch_server</code>
+      to measure single-batch latency including HTTP and scheduler overhead. Connect to a running server.
+    </p>
+
+    <!-- Benchmark Matrix -->
+    <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
+      <h3 class="text-sm font-semibold text-white mb-4">Test Matrix</h3>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="text-gray-500 border-b border-white/5">
+              <th class="text-left py-2 pr-4 font-medium">Input Tokens</th>
+              <th class="text-left py-2 pr-4 font-medium">Output Tokens</th>
+              <th class="text-left py-2 pr-4 font-medium">Batch Size</th>
+              <th class="text-left py-2 font-medium">Measures</th>
+            </tr>
+          </thead>
+          <tbody class="font-display text-gray-300">
+            <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">512</td><td class="pr-4">1</td><td>Prefill + decode latency</td></tr>
+            <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">1,024</td><td class="pr-4">1</td><td>Short-context long-generation</td></tr>
+            <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">512</td><td class="pr-4">1</td><td>Medium-context prefill stress</td></tr>
+            <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">1,024</td><td class="pr-4">1</td><td>Medium-context full pipeline</td></tr>
+            <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">16,384</td><td class="pr-4">512</td><td class="pr-4">1</td><td>Long-context prefill stress</td></tr>
+            <tr class="bench-row"><td class="py-2 pr-4">16,384</td><td class="pr-4">1,024</td><td class="pr-4">1</td><td>Long-context full pipeline</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Run All Benchmarks -->
+    <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
+      <h3 class="text-sm font-semibold text-white mb-4">Run Full Benchmark Suite</h3>
+      <p class="text-xs text-gray-500 mb-4">Iterates through all input/output length combinations. Assumes server is running on port 30000.</p>
+      <div class="code-block-wrapper">
+        <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; full benchmark sweep</div>
+        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+        <pre class="language-bash"><code>for INPUT_LEN in 1024 8192 16384; do
+  for OUTPUT_LEN in 512 1024; do
+    echo "====== Input: ${INPUT_LEN}, Output: ${OUTPUT_LEN} ======"
+    python3 -m sglang.bench_one_batch_server \
+        --model None \
+        --base-url http://localhost:30000 \
+        --batch-size 1 \
+        --input-len $INPUT_LEN \
+        --output-len $OUTPUT_LEN
+    echo ""
+  done
+done</code></pre>
+      </div>
+    </div>
+
+    <!-- Individual Commands -->
+    <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
+      <h3 class="text-sm font-semibold text-white mb-4">Individual Commands</h3>
+      <p class="text-xs text-gray-500 mb-4">Pick and run a specific combination.</p>
+      <div class="grid md:grid-cols-2 gap-4">
+
+        <div class="code-block-wrapper">
+          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">1K in &rarr; 512 out</div>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <pre class="language-bash"><code>python3 -m sglang.bench_one_batch_server \
+    --model None \
+    --base-url http://localhost:30000 \
+    --batch-size 1 \
+    --input-len 1024 \
+    --output-len 512</code></pre>
+        </div>
+
+        <div class="code-block-wrapper">
+          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">1K in &rarr; 1K out</div>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <pre class="language-bash"><code>python3 -m sglang.bench_one_batch_server \
+    --model None \
+    --base-url http://localhost:30000 \
+    --batch-size 1 \
+    --input-len 1024 \
+    --output-len 1024</code></pre>
+        </div>
+
+        <div class="code-block-wrapper">
+          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">8K in &rarr; 512 out</div>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <pre class="language-bash"><code>python3 -m sglang.bench_one_batch_server \
+    --model None \
+    --base-url http://localhost:30000 \
+    --batch-size 1 \
+    --input-len 8192 \
+    --output-len 512</code></pre>
+        </div>
+
+        <div class="code-block-wrapper">
+          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">8K in &rarr; 1K out</div>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <pre class="language-bash"><code>python3 -m sglang.bench_one_batch_server \
+    --model None \
+    --base-url http://localhost:30000 \
+    --batch-size 1 \
+    --input-len 8192 \
+    --output-len 1024</code></pre>
+        </div>
+
+        <div class="code-block-wrapper">
+          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">16K in &rarr; 512 out</div>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <pre class="language-bash"><code>python3 -m sglang.bench_one_batch_server \
+    --model None \
+    --base-url http://localhost:30000 \
+    --batch-size 1 \
+    --input-len 16384 \
+    --output-len 512</code></pre>
+        </div>
+
+        <div class="code-block-wrapper">
+          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">16K in &rarr; 1K out</div>
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <pre class="language-bash"><code>python3 -m sglang.bench_one_batch_server \
+    --model None \
+    --base-url http://localhost:30000 \
+    --batch-size 1 \
+    --input-len 16384 \
+    --output-len 1024</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- bench_serving (online serving) -->
+    <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
+      <h3 class="text-sm font-semibold text-white mb-4">Online Serving Benchmark (Optional)</h3>
+      <p class="text-xs text-gray-500 mb-4">For more realistic multi-client throughput testing, use <code class="text-gray-400 bg-surface-2 px-1.5 py-0.5 rounded text-xs font-display">bench_serving</code> instead.</p>
+      <div class="code-block-wrapper">
+        <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+        <pre class="language-bash"><code>CON="16 32 64 128"
+ISL=3200
+OSL=800
+for con in $CON; do
+    PROMPTS=$(($con * 5))
+    python3 -m sglang.bench_serving \
+        --dataset-name random \
+        --random-input-len $ISL \
+        --random-output-len $OSL \
+        --num-prompt $PROMPTS \
+        --random-range-ratio 1.0 \
+        --max-concurrency $con
+done</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- References -->
+<section id="references" class="py-12 px-6 border-t border-white/5">
+  <div class="max-w-6xl mx-auto">
+    <h2 class="text-2xl font-bold text-white mb-8">References</h2>
+    <div class="grid md:grid-cols-3 gap-6">
+
+      <!-- SGLang PRs -->
+      <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
+        <h3 class="text-sm font-semibold text-white mb-4">SGLang PRs</h3>
+        <ul class="space-y-2 text-xs">
+          <li class="flex items-start gap-2">
+            <span class="text-[#ED1C24] shrink-0">&bull;</span>
+            <a href="https://github.com/sgl-project/sglang/pull/17863" class="text-gray-400 hover:text-white transition">[AMD] Kimi K2.5 Day 0 &mdash; W4A16 MoE Triton routing (#17863)</a>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-[#ED1C24] shrink-0">&bull;</span>
+            <a href="https://github.com/sgl-project/sglang/pull/19228" class="text-gray-400 hover:text-white transition">[AMD] Kimi K2.5 fused_moe_triton perf tuning (#19228)</a>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-[#ED1C24] shrink-0">&bull;</span>
+            <a href="https://github.com/sgl-project/sglang/pull/18269" class="text-gray-400 hover:text-white transition">[AMD] Kimi K2.5 nightly test (#18269)</a>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-[#ED1C24] shrink-0">&bull;</span>
+            <a href="https://github.com/sgl-project/sglang/pull/18911" class="text-gray-400 hover:text-white transition">[AMD] GLM-5 Day 0 nightly test (#18911)</a>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-[#ED1C24] shrink-0">&bull;</span>
+            <a href="https://github.com/sgl-project/sglang/pull/19989" class="text-gray-400 hover:text-white transition">[AMD] GLM-5 NSA tensor aliasing fix (#19989)</a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Documentation -->
+      <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
+        <h3 class="text-sm font-semibold text-white mb-4">Documentation</h3>
+        <ul class="space-y-2 text-xs">
+          <li class="flex items-start gap-2">
+            <span class="text-[#ED1C24] shrink-0">&bull;</span>
+            <a href="https://docs.sglang.io/developer_guide/benchmark_and_profiling.html" class="text-gray-400 hover:text-white transition">SGLang Benchmark &amp; Profiling Guide</a>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-[#ED1C24] shrink-0">&bull;</span>
+            <a href="https://sgl-project.github.io/advanced_features/server_arguments.html" class="text-gray-400 hover:text-white transition">SGLang Server Arguments Reference</a>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-[#ED1C24] shrink-0">&bull;</span>
+            <a href="https://rocm.blogs.amd.com/artificial-intelligence/kimi-k2/README.html" class="text-gray-400 hover:text-white transition">AMD Blog: Kimi-K2 on MI355X</a>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-[#ED1C24] shrink-0">&bull;</span>
+            <a href="https://hub.docker.com/r/lmsysorg/sglang/tags" class="text-gray-400 hover:text-white transition">SGLang Docker Hub Tags</a>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Models -->
+      <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
+        <h3 class="text-sm font-semibold text-white mb-4">Model Pages</h3>
+        <ul class="space-y-2 text-xs">
+          <li class="flex items-start gap-2">
+            <span class="text-[#ED1C24] shrink-0">&bull;</span>
+            <a href="https://huggingface.co/Qwen/Qwen3.5-397B-A17B" class="text-gray-400 hover:text-white transition">Qwen3.5-397B-A17B on HuggingFace</a>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-[#ED1C24] shrink-0">&bull;</span>
+            <a href="https://huggingface.co/moonshotai/Kimi-K2.5" class="text-gray-400 hover:text-white transition">Kimi-K2.5 on HuggingFace</a>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-[#ED1C24] shrink-0">&bull;</span>
+            <a href="https://huggingface.co/zai-org/GLM-5-FP8" class="text-gray-400 hover:text-white transition">GLM-5-FP8 on HuggingFace</a>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-[#ED1C24] shrink-0">&bull;</span>
+            <a href="https://huggingface.co/zai-org/GLM-5" class="text-gray-400 hover:text-white transition">GLM-5 (BF16) on HuggingFace</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="py-8 px-6 border-t border-white/5">
+  <div class="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-4 text-xs text-gray-600">
+    <div>SGLang AMD Cookbook &mdash; <a href="https://github.com/jhinpan" class="hover:text-gray-400">@jhinpan</a></div>
+    <div>Last updated: March 2026</div>
+  </div>
+</footer>
+
+<script>
+function switchModel(modelId) {
+  document.querySelectorAll('.model-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('model-' + modelId).classList.add('active');
+  document.getElementById('tab-' + modelId).classList.add('active');
+}
+
+function copyCode(btn) {
+  const wrapper = btn.closest('.code-block-wrapper');
+  const code = wrapper.querySelector('code');
+  const text = code.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'Copy';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+</script>
+
+</body>
+</html>
