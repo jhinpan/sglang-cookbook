@@ -140,28 +140,18 @@ cat /proc/sys/kernel/numa_balancing  # Should output 0</code></pre>
           <div class="flex items-start gap-2 p-2 rounded bg-surface-2">
             <span class="text-green-500 shrink-0">&#10003;</span>
             <span class="text-gray-500 shrink-0">Qwen3.5:</span>
-            <span class="text-green-400 break-all">/mnt/dcgpuval/huggingface/hub/models--Qwen--Qwen3.5-397B-A17B/ <span class="text-gray-600">(752GB)</span></span>
+            <span class="text-green-400 break-all">models--Qwen--Qwen3.5-397B-A17B/ <span class="text-gray-600">(752 GB)</span></span>
           </div>
           <div class="flex items-start gap-2 p-2 rounded bg-surface-2">
-            <span class="text-yellow-500 shrink-0">&#8595;</span>
+            <span class="text-green-500 shrink-0">&#10003;</span>
             <span class="text-gray-500 shrink-0">Kimi-K2.5:</span>
-            <span class="text-yellow-400 break-all">moonshotai/Kimi-K2.5</span>
-            <span class="text-gray-600 text-[10px]">(needs download &mdash; auto on first launch)</span>
+            <span class="text-green-400 break-all">models--moonshotai--Kimi-K2.5/ <span class="text-gray-600">(555 GB)</span></span>
           </div>
           <div class="flex items-start gap-2 p-2 rounded bg-surface-2">
-            <span class="text-yellow-500 shrink-0">&#8595;</span>
+            <span class="text-green-500 shrink-0">&#10003;</span>
             <span class="text-gray-500 shrink-0">GLM-5:</span>
-            <span class="text-blue-400 break-all">zai-org/GLM-5-FP8</span>
-            <span class="text-gray-600 text-[10px]">(needs download &mdash; auto on first launch)</span>
+            <span class="text-green-400 break-all">models--zai-org--GLM-5-FP8/ <span class="text-gray-600">(705 GB)</span></span>
           </div>
-        </div>
-        <div class="mt-3 code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; pre-download models</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code># Pre-download Kimi-K2.5 (~500GB) and GLM-5-FP8 (~744GB) to shared cache
-export HF_HUB_CACHE=/mnt/dcgpuval/huggingface/hub
-huggingface-cli download moonshotai/Kimi-K2.5
-huggingface-cli download zai-org/GLM-5-FP8</code></pre>
         </div>
       </div>
 
@@ -370,7 +360,7 @@ curl -s http://localhost:30000/v1/chat/completions \
           <div class="flex gap-2 flex-wrap">
             <span class="px-2 py-0.5 rounded text-[10px] bg-purple-500/15 text-purple-400 border border-purple-500/20">MoE</span>
             <span class="px-2 py-0.5 rounded text-[10px] bg-orange-500/15 text-orange-400 border border-orange-500/20">W4A16</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 border border-green-500/20">~500 GB</span>
+            <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 border border-green-500/20">555 GB</span>
           </div>
         </div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-6">
@@ -429,7 +419,7 @@ git apply feature.patch</code></pre>
             <span class="px-2 py-0.5 rounded bg-gray-500/15 text-gray-400 text-[10px] font-display">TP=4</span>
             Launch Server (4 GPUs)
           </h4>
-          <p class="text-xs text-gray-500 mb-3">W4A16 model (~500GB) fits comfortably in 4&times;288GB = 1,152GB.</p>
+          <p class="text-xs text-gray-500 mb-3">W4A16 model (555 GB) fits in 4&times;288 GB = 1,152 GB with ~52% headroom for KV cache.</p>
           <div class="code-block-wrapper">
             <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
@@ -480,7 +470,7 @@ curl -s http://localhost:30000/v1/chat/completions \
             <span class="px-2 py-0.5 rounded text-[10px] bg-purple-500/15 text-purple-400 border border-purple-500/20">MoE</span>
             <span class="px-2 py-0.5 rounded text-[10px] bg-cyan-500/15 text-cyan-400 border border-cyan-500/20">NSA</span>
             <span class="px-2 py-0.5 rounded text-[10px] bg-teal-500/15 text-teal-400 border border-teal-500/20">FP8</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 border border-green-500/20">~744 GB</span>
+            <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 border border-green-500/20">705 GB</span>
           </div>
         </div>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-6">
@@ -546,7 +536,7 @@ pip install --upgrade transformers</code></pre>
             Launch Server (4 GPUs)
           </h4>
           <div class="bg-orange-500/5 border border-orange-500/15 rounded-lg p-3 mb-3">
-            <p class="text-xs text-orange-400">Tight fit: 744GB model in 1,152GB. Reduce <code>--mem-fraction-static</code> to leave room for KV cache. TP=8 strongly recommended for GLM-5.</p>
+            <p class="text-xs text-orange-400">Tight fit: 705 GB model in 1,152 GB. Reduce <code>--mem-fraction-static</code> to leave room for KV cache. TP=8 strongly recommended for GLM-5.</p>
           </div>
           <div class="code-block-wrapper">
             <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
