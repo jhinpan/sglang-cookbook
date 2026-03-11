@@ -382,8 +382,15 @@ curl -s http://localhost:30000/v1/chat/completions \
             <span class="px-2 py-0.5 rounded bg-[#ED1C24]/15 text-[#ED1C24] text-[10px] font-display">TP=8</span>
             Launch Server (Verified)
           </h4>
-          <p class="text-xs text-gray-500 mb-3">Tested end-to-end on 8&times; MI355X with the fixed 20260310 image. Weight loading takes ~5 min, CUDA graph capture ~34 s.</p>
+          <p class="text-xs text-gray-500 mb-3">Tested end-to-end on 8&times; MI355X. Use <code class="text-gray-400">Dockerfile.kimi-opt</code> which includes aiter stub, quark patch, and PR #19552 tool call parser fixes.</p>
           <div class="code-block-wrapper">
+            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; build optimized image</div>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre class="language-bash"><code># Build from the cookbook repo (includes PR #19552 tool call fixes)
+docker build -t sglang-kimi-opt:v0.5.9-rocm700-mi35x-20260310 \
+    -f Dockerfile.kimi-opt .</code></pre>
+          </div>
+          <div class="mt-4 code-block-wrapper">
             <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; docker run</div>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
             <pre class="language-bash"><code>docker run -d \
@@ -398,7 +405,7 @@ curl -s http://localhost:30000/v1/chat/completions \
     -e HF_HUB_OFFLINE=1 \
     -e SGLANG_ROCM_FUSED_DECODE_MLA=0 \
     -v /mnt/dcgpuval/huggingface:/sgl-workspace/models \
-    sglang-test:v0.5.9-rocm700-mi35x-20260310 \
+    sglang-kimi-opt:v0.5.9-rocm700-mi35x-20260310 \
     python3 -m sglang.launch_server \
         --model-path /sgl-workspace/models/hub/models--moonshotai--Kimi-K2.5/snapshots/54383e83fa343a1331754112fb9e3410c55efa2f \
         --served-model-name kimi-k2.5 \
@@ -407,14 +414,24 @@ curl -s http://localhost:30000/v1/chat/completions \
         --trust-remote-code \
         --mem-fraction-static 0.80 \
         --watchdog-timeout 1200 \
-        --port 30000</code></pre>
+        --host 0.0.0.0 \
+        --port 30000 \
+        --tool-call-parser kimi_k2 \
+        --reasoning-parser kimi_k2</code></pre>
           </div>
           <div class="mt-3 bg-blue-500/5 border border-blue-500/15 rounded-lg p-3">
             <p class="text-xs text-blue-400"><strong>Key flags:</strong>
               <code class="text-blue-300">SGLANG_ROCM_FUSED_DECODE_MLA=0</code> avoids MLA tuple-unpack crash with triton backend;
-              <code class="text-blue-300">HF_HUB_OFFLINE=1</code> prevents HuggingFace 429 rate limits;
-              CUDA graph is <strong>enabled</strong> (default) for 2.6&times; decode speedup;
-              <code class="text-blue-300">--watchdog-timeout 1200</code> for 555 GB weight loading.</p>
+              <code class="text-blue-300">--tool-call-parser kimi_k2</code> enables structured tool calling;
+              <code class="text-blue-300">--reasoning-parser kimi_k2</code> separates &lt;think&gt; blocks from content;
+              <code class="text-blue-300">--host 0.0.0.0</code> for network access from other nodes;
+              CUDA graph <strong>enabled</strong> (default) for 2.6&times; decode speedup.</p>
+          </div>
+          <div class="mt-3 bg-yellow-500/5 border border-yellow-500/15 rounded-lg p-3">
+            <p class="text-xs text-yellow-400"><strong>Tool calling note:</strong>
+              The W4A16 quantized Kimi-K2.5 model has known limitations with tool calling: empty arguments for some tool schemas (e.g. <code class="text-yellow-300">path</code> parameters) and multi-turn degradation at high temperatures.
+              Use <code class="text-yellow-300">tool_choice: &quot;required&quot;</code> and <code class="text-yellow-300">temperature &le; 0.6</code> for best reliability.
+              See <a href="https://github.com/sgl-project/sglang/pull/19552" class="text-yellow-300 hover:underline">PR #19552</a> for parser fixes (included in <code class="text-yellow-300">Dockerfile.kimi-opt</code>).</p>
           </div>
         </div>
 
