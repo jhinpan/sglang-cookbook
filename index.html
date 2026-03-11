@@ -162,14 +162,14 @@ cat /proc/sys/kernel/numa_balancing  # Should output 0</code></pre>
           Docker Images
         </h3>
         <p class="text-xs text-gray-500 mb-4">
-          All v0.5.9 images ship with a broken <code class="text-gray-400">aiter</code> C++ extension and a fused MLA rope regression (images after Feb 24).
-          Pull the <strong class="text-white">20260224</strong> base and build a fixed image with the aiter stub and quark patch.
+          All v0.5.9 images ship with a broken <code class="text-gray-400">aiter</code> C++ extension.
+          Pull the latest base image and build a fixed image with the aiter stub and quark patch.
         </p>
         <div class="code-block-wrapper">
           <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; pull base image</div>
           <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code># Last known good image (no MLA fused rope regression)
-docker pull rocm/sgl-dev:v0.5.9-rocm700-mi35x-20260224</code></pre>
+          <pre class="language-bash"><code># Latest image (SGLang v0.5.9, ROCm 7.0, MI355X)
+docker pull rocm/sgl-dev:v0.5.9-rocm700-mi35x-20260310</code></pre>
         </div>
         <div class="mt-4 code-block-wrapper">
           <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; build fixed image with aiter stub</div>
@@ -178,14 +178,14 @@ docker pull rocm/sgl-dev:v0.5.9-rocm700-mi35x-20260224</code></pre>
 git clone https://github.com/jhinpan/sglang-cookbook.git &amp;&amp; cd sglang-cookbook
 
 # Build fixed image: disables broken aiter, patches quark imports
-docker build -t sglang-test:v0.5.9-rocm700-mi35x-20260224 \
-    --build-arg BASE=rocm/sgl-dev:v0.5.9-rocm700-mi35x-20260224 \
+docker build -t sglang-test:v0.5.9-rocm700-mi35x-20260310 \
+    --build-arg BASE=rocm/sgl-dev:v0.5.9-rocm700-mi35x-20260310 \
     -f Dockerfile.bisect .</code></pre>
         </div>
         <div class="mt-4 bg-orange-500/5 border border-orange-500/15 rounded-lg p-4">
-          <div class="text-xs font-semibold text-orange-400 mb-2">Known Issue: MLA Fused Rope Regression</div>
-          <p class="text-xs text-gray-500">Images dated <strong class="text-orange-300">Feb 28 and later</strong> have a regression in <code class="text-gray-400">forward_mla_fused_rope_rocm.py</code> that crashes during model init. Use the 20260224 base image.
-            Additionally, the base image sets <code class="text-gray-400">SGLANG_ROCM_FUSED_DECODE_MLA=1</code> which is incompatible with the triton attention backend &mdash; override it to <code class="text-gray-400">0</code> at launch (shown in model configs below).</p>
+          <div class="text-xs font-semibold text-orange-400 mb-2">Required: Override SGLANG_ROCM_FUSED_DECODE_MLA</div>
+          <p class="text-xs text-gray-500">The base image sets <code class="text-gray-400">SGLANG_ROCM_FUSED_DECODE_MLA=1</code>, which crashes the triton attention backend with a <code class="text-gray-400">ForwardMetadata</code> unpacking error.
+            Override to <code class="text-gray-400">0</code> via <code class="text-gray-400">-e SGLANG_ROCM_FUSED_DECODE_MLA=0</code> at <code class="text-gray-400">docker run</code> time (shown in model configs below).</p>
         </div>
       </div>
     </div>
@@ -364,7 +364,7 @@ curl -s http://localhost:30000/v1/chat/completions \
           </div>
           <div class="bg-surface-2 rounded-lg p-3">
             <div class="text-gray-500">Decode Throughput</div>
-            <div class="text-white font-display mt-1">~14 tok/s (TP8, BS1)</div>
+            <div class="text-white font-display mt-1">25&ndash;37 tok/s (TP8, BS1)</div>
           </div>
           <div class="bg-surface-2 rounded-lg p-3">
             <div class="text-gray-500">Attention Backend</div>
@@ -382,7 +382,7 @@ curl -s http://localhost:30000/v1/chat/completions \
             <span class="px-2 py-0.5 rounded bg-[#ED1C24]/15 text-[#ED1C24] text-[10px] font-display">TP=8</span>
             Launch Server (Verified)
           </h4>
-          <p class="text-xs text-gray-500 mb-3">Tested end-to-end on 8&times; MI355X with the fixed 20260224 image. Weight loading takes ~5 min.</p>
+          <p class="text-xs text-gray-500 mb-3">Tested end-to-end on 8&times; MI355X with the fixed 20260310 image. Weight loading takes ~5 min, CUDA graph capture ~34 s.</p>
           <div class="code-block-wrapper">
             <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; docker run</div>
             <button class="copy-btn" onclick="copyCode(this)">Copy</button>
@@ -398,7 +398,7 @@ curl -s http://localhost:30000/v1/chat/completions \
     -e HF_HUB_OFFLINE=1 \
     -e SGLANG_ROCM_FUSED_DECODE_MLA=0 \
     -v /mnt/dcgpuval/huggingface:/sgl-workspace/models \
-    sglang-test:v0.5.9-rocm700-mi35x-20260224 \
+    sglang-test:v0.5.9-rocm700-mi35x-20260310 \
     python3 -m sglang.launch_server \
         --model-path /sgl-workspace/models/hub/models--moonshotai--Kimi-K2.5/snapshots/54383e83fa343a1331754112fb9e3410c55efa2f \
         --served-model-name kimi-k2.5 \
@@ -406,7 +406,6 @@ curl -s http://localhost:30000/v1/chat/completions \
         --attention-backend triton \
         --trust-remote-code \
         --mem-fraction-static 0.80 \
-        --disable-cuda-graph \
         --watchdog-timeout 1200 \
         --port 30000</code></pre>
           </div>
@@ -414,7 +413,7 @@ curl -s http://localhost:30000/v1/chat/completions \
             <p class="text-xs text-blue-400"><strong>Key flags:</strong>
               <code class="text-blue-300">SGLANG_ROCM_FUSED_DECODE_MLA=0</code> avoids MLA tuple-unpack crash with triton backend;
               <code class="text-blue-300">HF_HUB_OFFLINE=1</code> prevents HuggingFace 429 rate limits;
-              <code class="text-blue-300">--disable-cuda-graph</code> required (MLA TypeError during graph capture);
+              CUDA graph is <strong>enabled</strong> (default) for 2.6&times; decode speedup;
               <code class="text-blue-300">--watchdog-timeout 1200</code> for 555 GB weight loading.</p>
           </div>
         </div>
@@ -437,16 +436,16 @@ curl -s http://localhost:30000/v1/chat/completions \
                 </tr>
               </thead>
               <tbody class="font-display text-gray-300">
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">0.35 s</td><td class="pr-4">13.91 tok/s</td><td>37.17 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.35 s</td><td class="pr-4">14.02 tok/s</td><td>73.39 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">1.08 s</td><td class="pr-4">13.98 tok/s</td><td>37.70 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">1.07 s</td><td class="pr-4">13.91 tok/s</td><td>74.67 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">16,384</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">1.98 s</td><td class="pr-4">13.97 tok/s</td><td>38.63 s</td></tr>
-                <tr class="bench-row"><td class="py-2 pr-4">16,384</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">1.98 s</td><td class="pr-4">13.92 tok/s</td><td>75.55 s</td></tr>
+                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">0.32 s</td><td class="pr-4 text-green-400">36.75 tok/s</td><td>13.93 s</td></tr>
+                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.32 s</td><td class="pr-4 text-green-400">36.87 tok/s</td><td>27.77 s</td></tr>
+                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">1.04 s</td><td class="pr-4 text-green-400">29.56 tok/s</td><td>17.32 s</td></tr>
+                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">1.03 s</td><td class="pr-4 text-green-400">30.29 tok/s</td><td>33.80 s</td></tr>
+                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">16,384</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">1.94 s</td><td class="pr-4 text-green-400">24.15 tok/s</td><td>21.20 s</td></tr>
+                <tr class="bench-row"><td class="py-2 pr-4">16,384</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">1.94 s</td><td class="pr-4 text-green-400">25.17 tok/s</td><td>40.69 s</td></tr>
               </tbody>
             </table>
           </div>
-          <p class="text-[10px] text-gray-600 mt-2">Image: sglang-test:v0.5.9-rocm700-mi35x-20260224 &bull; 8&times; MI355X &bull; triton backend &bull; CUDA graph off &bull; March 2026</p>
+          <p class="text-[10px] text-gray-600 mt-2">Image: sglang-test:v0.5.9-rocm700-mi35x-20260310 &bull; 8&times; MI355X &bull; triton backend &bull; CUDA graph on &bull; March 2026</p>
         </div>
       </div>
 
