@@ -231,91 +231,94 @@ docker build -t sglang-test:v0.5.9-rocm700-mi35x-20260310 \
             <div class="text-white font-display mt-1">Qwen/Qwen3.5-397B-A17B</div>
           </div>
           <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Best Throughput</div>
-            <div class="text-white font-display mt-1">3,926 tok/s (TP8)</div>
+            <div class="text-gray-500">Decode Throughput</div>
+            <div class="text-white font-display mt-1">53&ndash;59 tok/s (TP8, BS1)</div>
           </div>
           <div class="bg-surface-2 rounded-lg p-3">
             <div class="text-gray-500">Attention Backend</div>
-            <div class="text-white font-display mt-1">aiter / triton</div>
+            <div class="text-white font-display mt-1">triton</div>
           </div>
           <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Max KV Tokens</div>
-            <div class="text-white font-display mt-1">4.4M (TP8)</div>
+            <div class="text-gray-500">Status</div>
+            <div class="text-green-400 font-display mt-1">Verified &check;</div>
           </div>
         </div>
 
-        <!-- Triton Patch -->
-        <div class="bg-yellow-500/5 border border-yellow-500/15 rounded-lg p-4 mb-6">
-          <div class="text-xs font-semibold text-yellow-400 mb-2">Required: Triton kpack gfx950 Patch</div>
-          <p class="text-xs text-gray-500 mb-3">The MI355X (gfx950) architecture requires a triton attention kernel patch for correct behavior.</p>
-          <div class="code-block-wrapper">
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre class="language-bash"><code>cd /sgl-workspace/sglang
-wget https://raw.githubusercontent.com/Vivicai1005/triton_feature/main/feature.patch
-git apply feature.patch</code></pre>
-          </div>
-        </div>
-
-        <!-- TP=8 Launch -->
+        <!-- TP=8 Launch (Verified) -->
         <div class="mb-6">
           <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
             <span class="px-2 py-0.5 rounded bg-[#ED1C24]/15 text-[#ED1C24] text-[10px] font-display">TP=8</span>
-            Launch Server (Recommended)
+            Launch Server (Verified)
           </h4>
-
-          <div class="space-y-4">
-            <div>
-              <div class="text-xs text-gray-500 mb-2">Option A &mdash; AITER backend (best throughput)</div>
-              <div class="code-block-wrapper">
-                <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                <pre class="language-bash"><code>python3 -m sglang.launch_server \
-    --model-path Qwen/Qwen3.5-397B-A17B \
-    --tp 8 \
-    --attention-backend aiter \
-    --mem-fraction-static 0.80 \
-    --max-mamba-cache-size 128 \
-    --port 30000</code></pre>
-              </div>
-            </div>
-
-            <div>
-              <div class="text-xs text-gray-500 mb-2">Option B &mdash; Triton backend (more stable)</div>
-              <div class="code-block-wrapper">
-                <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                <pre class="language-bash"><code>python3 -m sglang.launch_server \
-    --model-path Qwen/Qwen3.5-397B-A17B \
-    --tp 8 \
-    --attention-backend triton \
-    --mem-fraction-static 0.75 \
-    --disable-cuda-graph \
-    --watchdog-timeout 1200 \
-    --port 30000</code></pre>
-              </div>
-            </div>
+          <p class="text-xs text-gray-500 mb-3">Tested end-to-end on 8&times; MI355X. Hybrid DeltaNet architecture: 45 recurrent + 15 GQA layers. <code class="text-gray-400">--max-mamba-cache-size 128</code> is critical (+45% perf).</p>
+          <div class="code-block-wrapper">
+            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; docker run</div>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre class="language-bash"><code>docker run -d \
+    --name qwen35-serve \
+    --ipc=host --network=host --privileged \
+    --shm-size 32G \
+    --cap-add=CAP_SYS_ADMIN --cap-add=SYS_PTRACE \
+    --device=/dev/kfd --device=/dev/dri \
+    --group-add video \
+    --security-opt seccomp=unconfined \
+    --security-opt apparmor=unconfined \
+    -e HF_HUB_OFFLINE=1 \
+    -e SGLANG_ROCM_FUSED_DECODE_MLA=0 \
+    -v /mnt/dcgpuval/huggingface:/sgl-workspace/models \
+    sglang-kimi-opt:v0.5.9-rocm700-mi35x-20260310 \
+    python3 -m sglang.launch_server \
+        --model-path /sgl-workspace/models/hub/models--Qwen--Qwen3.5-397B-A17B/snapshots/98d1a504ba52e88924b3a3a008447cf2fdbd518c \
+        --served-model-name Qwen3.5-397B-A17B \
+        --tp 8 \
+        --trust-remote-code \
+        --attention-backend triton \
+        --mem-fraction-static 0.80 \
+        --max-mamba-cache-size 128 \
+        --reasoning-parser qwen3 \
+        --tool-call-parser qwen3_coder \
+        --watchdog-timeout 1200 \
+        --host 0.0.0.0 \
+        --port 30000</code></pre>
+          </div>
+          <div class="mt-3 bg-blue-500/5 border border-blue-500/15 rounded-lg p-3">
+            <p class="text-xs text-blue-400"><strong>Key flags:</strong>
+              <code class="text-blue-300">--max-mamba-cache-size 128</code> critical for DeltaNet&rsquo;s 45 recurrent layers (+45% perf vs default 64);
+              <code class="text-blue-300">--tool-call-parser qwen3_coder</code> for robust tool calling (10/10 multi-turn);
+              <code class="text-blue-300">--reasoning-parser qwen3</code> separates &lt;think&gt; blocks;
+              CUDA graph <strong>enabled</strong> (default);
+              <code class="text-blue-300">SGLANG_ROCM_FUSED_DECODE_MLA=0</code> required for triton backend.</p>
           </div>
         </div>
 
-        <!-- TP=4 Launch -->
-        <div>
+        <!-- Benchmark Results -->
+        <div class="mb-6">
           <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-gray-500/15 text-gray-400 text-[10px] font-display">TP=4</span>
-            Launch Server (4 GPUs)
+            <span class="px-2 py-0.5 rounded bg-green-500/15 text-green-400 text-[10px] font-display">BENCH</span>
+            bench_one_batch_server Results (TP=8, batch=1)
           </h4>
-          <p class="text-xs text-gray-500 mb-3">752GB model fits in 4&times;288GB = 1,152GB. Reduces KV cache headroom to ~35%.</p>
-          <div class="code-block-wrapper">
-            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre class="language-bash"><code>HIP_VISIBLE_DEVICES=0,1,2,3 python3 -m sglang.launch_server \
-    --model-path Qwen/Qwen3.5-397B-A17B \
-    --tp 4 \
-    --attention-backend triton \
-    --mem-fraction-static 0.70 \
-    --disable-cuda-graph \
-    --watchdog-timeout 1200 \
-    --port 30000</code></pre>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="text-gray-500 border-b border-white/5">
+                  <th class="text-left py-2 pr-4 font-medium">Input</th>
+                  <th class="text-left py-2 pr-4 font-medium">Output</th>
+                  <th class="text-left py-2 pr-4 font-medium">TTFT</th>
+                  <th class="text-left py-2 pr-4 font-medium">Decode</th>
+                  <th class="text-left py-2 font-medium">Total Latency</th>
+                </tr>
+              </thead>
+              <tbody class="font-display text-gray-300">
+                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">0.11 s</td><td class="pr-4 text-green-400">58.90 tok/s</td><td>8.69 s</td></tr>
+                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.11 s</td><td class="pr-4 text-green-400">59.17 tok/s</td><td>17.31 s</td></tr>
+                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">0.31 s</td><td class="pr-4 text-green-400">55.71 tok/s</td><td>9.19 s</td></tr>
+                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.25 s</td><td class="pr-4 text-green-400">56.68 tok/s</td><td>18.07 s</td></tr>
+                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">16,384</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">0.51 s</td><td class="pr-4 text-green-400">52.32 tok/s</td><td>9.79 s</td></tr>
+                <tr class="bench-row"><td class="py-2 pr-4">16,384</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.45 s</td><td class="pr-4 text-green-400">53.79 tok/s</td><td>19.04 s</td></tr>
+              </tbody>
+            </table>
           </div>
+          <p class="text-[10px] text-gray-600 mt-2">Image: sglang-kimi-opt:v0.5.9-rocm700-mi35x-20260310 &bull; 8&times; MI355X &bull; triton backend &bull; CUDA graph on &bull; mamba-cache=128 &bull; March 2026</p>
         </div>
       </div>
 
@@ -325,19 +328,31 @@ git apply feature.patch</code></pre>
         <div class="code-block-wrapper">
           <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
           <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code># Health check
+          <pre class="language-bash"><code># Wait for "The server is fired up and ready to roll!"
+docker logs -f qwen35-serve
+
+# Health check
 curl http://localhost:30000/health
 
-# List models
-curl http://localhost:30000/v1/models | python3 -m json.tool
-
-# Quick inference test
+# Inference test (use max_tokens >= 512 for reasoning models)
 curl -s http://localhost:30000/v1/chat/completions \
     -H "Content-Type: application/json" \
     -d '{
-      "model": "Qwen/Qwen3.5-397B-A17B",
-      "messages": [{"role": "user", "content": "Hello, who are you?"}],
-      "max_tokens": 64
+      "model": "Qwen3.5-397B-A17B",
+      "messages": [{"role": "user", "content": "What is 2+2?"}],
+      "max_tokens": 512,
+      "temperature": 0.0
+    }' | python3 -m json.tool
+
+# Tool calling test
+curl -s http://localhost:30000/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{
+      "model": "Qwen3.5-397B-A17B",
+      "messages": [{"role": "user", "content": "Read /etc/hostname"}],
+      "tools": [{"type":"function","function":{"name":"ReadFile","description":"Read a file.","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}}}],
+      "tool_choice": "auto",
+      "max_tokens": 1024
     }' | python3 -m json.tool</code></pre>
         </div>
       </div>
