@@ -1,0 +1,9 @@
+ARG BASE
+FROM ${BASE}
+RUN mv /sgl-workspace/aiter /sgl-workspace/aiter.orig 2>/dev/null || true
+COPY create_aiter_stub.py /tmp/create_aiter_stub.py
+RUN python3 /tmp/create_aiter_stub.py && rm /tmp/create_aiter_stub.py
+COPY patch_quark.py /tmp/patch_quark.py
+RUN python3 /tmp/patch_quark.py 2>/dev/null || true && rm /tmp/patch_quark.py
+ENV SGLANG_USE_AITER=0
+ENV PYTHONPATH=/sgl-workspace/aiter_stub:${PYTHONPATH}

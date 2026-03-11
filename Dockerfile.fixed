@@ -1,0 +1,7 @@
+FROM rocm/sgl-dev:v0.5.9-rocm700-mi35x-20260310
+# Replace broken aiter (C++ ext not compiled) with a minimal stub
+RUN mv /sgl-workspace/aiter /sgl-workspace/aiter.orig
+COPY create_aiter_stub.py /tmp/create_aiter_stub.py
+RUN python3 /tmp/create_aiter_stub.py && rm /tmp/create_aiter_stub.py
+ENV SGLANG_USE_AITER=0
+ENV PYTHONPATH=/sgl-workspace/aiter_stub:${PYTHONPATH}
