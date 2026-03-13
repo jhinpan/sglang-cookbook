@@ -266,7 +266,7 @@ docker build -t sglang-test:v0.5.9-rocm700-mi35x-20260310 \
     -e HF_HUB_OFFLINE=1 \
     -e SGLANG_ROCM_FUSED_DECODE_MLA=0 \
     -v /mnt/dcgpuval/huggingface:/sgl-workspace/models \
-    sglang-kimi-opt:v0.5.9-rocm700-mi35x-20260310 \
+    sglang-test:v0.5.9-rocm700-mi35x-20260310 \
     python3 -m sglang.launch_server \
         --model-path /sgl-workspace/models/hub/models--Qwen--Qwen3.5-397B-A17B/snapshots/98d1a504ba52e88924b3a3a008447cf2fdbd518c \
         --served-model-name Qwen3.5-397B-A17B \
@@ -318,7 +318,16 @@ docker build -t sglang-test:v0.5.9-rocm700-mi35x-20260310 \
               </tbody>
             </table>
           </div>
-          <p class="text-[10px] text-gray-600 mt-2">Image: sglang-kimi-opt:v0.5.9-rocm700-mi35x-20260310 &bull; 8&times; MI355X &bull; triton backend &bull; CUDA graph on &bull; mamba-cache=128 &bull; March 2026</p>
+          <p class="text-[10px] text-gray-600 mt-2">Image: sglang-test:v0.5.9-rocm700-mi35x-20260310 &bull; 8&times; MI355X &bull; triton backend &bull; CUDA graph on &bull; mamba-cache=128 &bull; March 2026</p>
+        </div>
+
+        <!-- Known Issues -->
+        <div class="bg-orange-500/5 border border-orange-500/15 rounded-lg p-4">
+          <div class="text-xs font-semibold text-orange-400 mb-2">Known Issue: DeltaNet Mamba Memory Leak</div>
+          <p class="text-xs text-gray-500">Qwen3.5&rsquo;s 45 DeltaNet recurrent layers can leak memory over extended runtime, causing NCCL process group failures after ~10&ndash;12 hours.
+            See <a href="https://github.com/sgl-project/sglang/issues/20010" class="text-orange-300 hover:underline">Issue #20010</a> /
+            <a href="https://github.com/sgl-project/sglang/pull/20182" class="text-orange-300 hover:underline">PR #20182</a>.
+            Workaround: periodic container restart (<code class="text-orange-300">docker restart qwen35-serve</code>).</p>
         </div>
       </div>
 
