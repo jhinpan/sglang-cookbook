@@ -258,6 +258,7 @@ docker build -t sglang-test:v0.5.9-rocm700-mi35x-20260310 \
     --name qwen35-serve \
     --ipc=host --network=host --privileged \
     --shm-size 32G \
+    --ulimit core=0:0 \
     --cap-add=CAP_SYS_ADMIN --cap-add=SYS_PTRACE \
     --device=/dev/kfd --device=/dev/dri \
     --group-add video \
@@ -287,7 +288,8 @@ docker build -t sglang-test:v0.5.9-rocm700-mi35x-20260310 \
               <code class="text-blue-300">--tool-call-parser qwen3_coder</code> for robust tool calling (10/10 multi-turn);
               <code class="text-blue-300">--reasoning-parser qwen3</code> separates &lt;think&gt; blocks;
               CUDA graph <strong>enabled</strong> (default);
-              <code class="text-blue-300">SGLANG_ROCM_FUSED_DECODE_MLA=0</code> required for triton backend.</p>
+              <code class="text-blue-300">SGLANG_ROCM_FUSED_DECODE_MLA=0</code> required for triton backend;
+              <code class="text-blue-300">--ulimit core=0:0</code> prevents GPU core dumps from filling disk on crash (~200 GB each).</p>
           </div>
         </div>
 
@@ -421,6 +423,7 @@ docker build -t sglang-kimi-opt:v0.5.9-rocm700-mi35x-20260310 \
     --name kimi-k2.5-serve \
     --ipc=host --network=host --privileged \
     --shm-size 32G \
+    --ulimit core=0:0 \
     --cap-add=CAP_SYS_ADMIN --cap-add=SYS_PTRACE \
     --device=/dev/kfd --device=/dev/dri \
     --group-add video \
