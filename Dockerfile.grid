@@ -1,0 +1,26 @@
+ARG BASE=rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260320
+FROM ${BASE}
+
+ARG USE_AITER=0
+
+# Fix 1: aiter stub (C++ extensions not compiled in some images)
+RUN if [ "${USE_AITER}" = "0" ]; then \
+        mv /sgl-workspace/aiter /sgl-workspace/aiter.orig 2>/dev/null || true; \
+    fi
+COPY create_aiter_stub.py /tmp/create_aiter_stub.py
+RUN if [ "${USE_AITER}" = "0" ]; then \
+        python3 /tmp/create_aiter_stub.py; \
+    fi && rm -f /tmp/create_aiter_stub.py
+
+# Fix 2: quark import patch
+COPY patch_quark.py /tmp/patch_quark.py
+RUN python3 /tmp/patch_quark.py 2>/dev/null || true && rm -f /tmp/patch_quark.py
+
+# Fix 3: PR #19552 tool call parser (apply if patch exists)
+COPY pr19552.patch /tmp/pr19552.patch
+RUN cd /sgl-workspace/sglang && \
+    git apply /tmp/pr19552.patch 2>/dev/null || true && \
+    rm -f /tmp/pr19552.patch
+
+ENV SGLANG_USE_AITER=${USE_AITER}
+ENV PYTHONPATH=/sgl-workspace/aiter_stub:${PYTHONPATH}
