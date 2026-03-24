@@ -1,0 +1,21 @@
+### Merge Qwen3.5-397B-A17B LoRA SFT v4 adapter into the base model.
+### Requires LLaMA-Factory: pip install llamafactory
+### Run: llamafactory-cli export merge_qwen35_lora.yaml
+###
+### Adjust model_name_or_path and adapter_name_or_path to match your local paths.
+### The adapter can also be loaded from HF Hub: JinnP/Qwen3.5-397B-A17B-LoRA-SFT-v4
+###
+### Output: ~743 GB (122 x 5GB shards), takes ~25 min on CPU with ~800 GB RAM.
+### Note: DO NOT use quantized model or quantization_bit when merging lora adapters.
+
+### model
+model_name_or_path: /sgl-workspace/models/hub/models--Qwen--Qwen3.5-397B-A17B/snapshots/7cad2bae11cb49ca79f7d6a0954de2e2756f4e27
+adapter_name_or_path: JinnP/Qwen3.5-397B-A17B-LoRA-SFT-v4
+template: qwen3_5_nothink
+trust_remote_code: true
+
+### export
+export_dir: /sgl-workspace/models/Qwen3.5-397B-A17B-LoRA-SFT-v4-merged
+export_size: 5
+export_device: cpu
+export_legacy_format: false

@@ -367,6 +367,167 @@ curl -s http://localhost:30000/v1/chat/completions \
     }' | python3 -m json.tool</code></pre>
         </div>
       </div>
+
+      <!-- LoRA SFT Fine-tuned Model -->
+      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mt-6">
+        <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+          <span class="px-2 py-0.5 rounded bg-yellow-500/15 text-yellow-400 text-[10px] font-display">LoRA SFT</span>
+          Serving the Fine-tuned Model (v4)
+        </h4>
+        <p class="text-xs text-gray-500 mb-4">
+          The <a href="https://huggingface.co/JinnP/Qwen3.5-397B-A17B-LoRA-SFT-v4" class="text-blue-400 hover:underline">LoRA SFT v4</a> adapter
+          fine-tunes Qwen3.5 on AMD GPU kernel engineering trajectories (270 examples, rank 32, 13 target module types).
+          SGLang&rsquo;s runtime LoRA does not support this adapter&rsquo;s DeltaNet recurrent modules
+          (<code class="text-gray-400">in_proj_a/b/z/qkv</code>, <code class="text-gray-400">out_proj</code>)
+          or MoE gate (<code class="text-gray-400">shared_expert_gate</code>).
+          The workaround is to <strong class="text-white">merge the adapter offline</strong> and serve the merged model as a standalone checkpoint.
+        </p>
+
+        <!-- Why not runtime LoRA -->
+        <div class="bg-red-500/5 border border-red-500/15 rounded-lg p-4 mb-4">
+          <div class="text-xs font-semibold text-red-400 mb-2">Why Runtime LoRA Won&rsquo;t Work</div>
+          <p class="text-xs text-gray-500">
+            SGLang LoRA supports: <code class="text-red-300">q/k/v/o_proj, gate/up/down_proj</code>.
+            This adapter also targets 6 unsupported modules across Qwen3.5&rsquo;s 45 DeltaNet layers and MoE gates.
+            Attempting <code class="text-red-300">--lora-paths</code> will fail at <code class="text-red-300">init_lora_shapes()</code>.
+            See <a href="https://github.com/sgl-project/sglang/issues/9897" class="text-red-300 hover:underline">sglang#9897</a>.
+          </p>
+        </div>
+
+        <!-- Merge workflow -->
+        <div class="mb-4">
+          <div class="text-xs font-semibold text-yellow-400 mb-2">Step 1: Merge LoRA into Base Model (offline, ~25 min)</div>
+          <p class="text-xs text-gray-500 mb-3">
+            Use <a href="https://github.com/hiyouga/LLaMA-Factory" class="text-blue-400 hover:underline">LLaMA-Factory</a> to merge.
+            Requires ~800 GB RAM. Output: 743 GB (122 &times; 5 GB shards).
+          </p>
+          <div class="code-block-wrapper mb-3">
+            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">yaml &mdash; merge config (examples/merge_lora/qwen35_397b_lora_sft_amdpilot.yaml)</div>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre class="language-yaml"><code>### model
+model_name_or_path: /sgl-workspace/models/hub/models--Qwen--Qwen3.5-397B-A17B/snapshots/7cad2bae11cb49ca79f7d6a0954de2e2756f4e27
+adapter_name_or_path: JinnP/Qwen3.5-397B-A17B-LoRA-SFT-v4
+template: qwen3_5_nothink
+trust_remote_code: true
+
+### export
+export_dir: /sgl-workspace/models/Qwen3.5-397B-A17B-LoRA-SFT-v4-merged
+export_size: 5
+export_device: cpu
+export_legacy_format: false</code></pre>
+          </div>
+          <div class="code-block-wrapper">
+            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; run merge</div>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre class="language-bash"><code>llamafactory-cli export examples/merge_lora/qwen35_397b_lora_sft_amdpilot.yaml</code></pre>
+          </div>
+        </div>
+
+        <!-- Serve merged model -->
+        <div class="mb-4">
+          <div class="text-xs font-semibold text-yellow-400 mb-2">Step 2: Serve Merged Model with SGLang</div>
+          <p class="text-xs text-gray-500 mb-3">
+            Identical to the base Qwen3.5 launch command, just swap <code class="text-gray-400">--model-path</code> and <code class="text-gray-400">--served-model-name</code>.
+            All flags (<code class="text-gray-400">--max-mamba-cache-size</code>, <code class="text-gray-400">--reasoning-parser</code>, etc.) carry over.
+          </p>
+          <div class="code-block-wrapper">
+            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; docker run</div>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre class="language-bash"><code>docker run -d \
+    --name qwen35-sft-serve \
+    --ipc=host --network=host --privileged \
+    --shm-size 32G \
+    --ulimit core=0:0 \
+    --cap-add=CAP_SYS_ADMIN --cap-add=SYS_PTRACE \
+    --device=/dev/kfd --device=/dev/dri \
+    --group-add video \
+    --security-opt seccomp=unconfined \
+    --security-opt apparmor=unconfined \
+    -e HF_HUB_OFFLINE=1 \
+    -e SGLANG_ROCM_FUSED_DECODE_MLA=0 \
+    -v /mnt/dcgpuval/huggingface:/sgl-workspace/models \
+    sglang-test:v0.5.9-rocm700-mi35x-20260310 \
+    python3 -m sglang.launch_server \
+        --model-path /sgl-workspace/models/hub/Qwen3.5-397B-A17B-LoRA-SFT-v4-merged \
+        --served-model-name Qwen3.5-397B-A17B-SFT-v4 \
+        --tp 8 \
+        --trust-remote-code \
+        --attention-backend triton \
+        --mem-fraction-static 0.80 \
+        --max-mamba-cache-size 128 \
+        --reasoning-parser qwen3 \
+        --tool-call-parser qwen3_coder \
+        --watchdog-timeout 1200 \
+        --host 0.0.0.0 \
+        --port 30000</code></pre>
+          </div>
+        </div>
+
+        <!-- Verification for SFT model -->
+        <div>
+          <div class="text-xs font-semibold text-yellow-400 mb-2">Step 3: Verify</div>
+          <div class="code-block-wrapper">
+            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre class="language-bash"><code># Wait for server ready
+docker logs -f qwen35-sft-serve
+
+# Health check
+curl http://localhost:30000/health
+
+# Test inference with the fine-tuned model
+curl -s http://localhost:30000/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{
+      "model": "Qwen3.5-397B-A17B-SFT-v4",
+      "messages": [{"role": "user", "content": "What is 2+2?"}],
+      "max_tokens": 512,
+      "temperature": 0.0
+    }' | python3 -m json.tool</code></pre>
+          </div>
+        </div>
+
+        <!-- Adapter details -->
+        <div class="bg-surface-2 rounded-lg p-4 mt-4">
+          <div class="text-xs font-semibold text-gray-400 mb-2">Adapter Details</div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div>
+              <div class="text-gray-500">HF Adapter</div>
+              <div class="text-white font-display mt-1">JinnP/Qwen3.5-397B-A17B-LoRA-SFT-v4</div>
+            </div>
+            <div>
+              <div class="text-gray-500">Rank / Alpha</div>
+              <div class="text-white font-display mt-1">32 / 64</div>
+            </div>
+            <div>
+              <div class="text-gray-500">Trainable Params</div>
+              <div class="text-white font-display mt-1">128.5M (0.032%)</div>
+            </div>
+            <div>
+              <div class="text-gray-500">Merged Size</div>
+              <div class="text-white font-display mt-1">743 GB (122 shards)</div>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mt-3">
+            <div>
+              <div class="text-gray-500">Dataset</div>
+              <div class="text-white font-display mt-1">270 examples (3-view)</div>
+            </div>
+            <div>
+              <div class="text-gray-500">Best Eval Loss</div>
+              <div class="text-white font-display mt-1">0.0547 (epoch 8)</div>
+            </div>
+            <div>
+              <div class="text-gray-500">Target Modules</div>
+              <div class="text-white font-display mt-1">13 types (all)</div>
+            </div>
+            <div>
+              <div class="text-gray-500">NFS Path</div>
+              <div class="text-white font-display mt-1">hub/Qwen3.5-397B-A17B-LoRA-SFT-v4-merged/</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ==================== KIMI K2.5 ==================== -->
