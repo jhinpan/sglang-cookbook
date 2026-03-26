@@ -162,13 +162,16 @@ cat /proc/sys/kernel/numa_balancing  # Should output 0</code></pre>
           Docker Images
         </h3>
         <p class="text-xs text-gray-500 mb-4">
-          All v0.5.9 images ship with a broken <code class="text-gray-400">aiter</code> C++ extension.
-          Pull the latest base image and build a fixed image with the aiter stub and quark patch.
+          Two base images are available. The ROCm 7.2 image (<code class="text-gray-400">20260317</code>) is recommended for Kimi-K2.5 with optimized branches.
+          For Qwen3.5, use the ROCm 7.0 image (<code class="text-gray-400">20260310</code>) with the fixed Dockerfile.
         </p>
         <div class="code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; pull base image</div>
+          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; pull base images</div>
           <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code># Latest image (SGLang v0.5.9, ROCm 7.0, MI355X)
+          <pre class="language-bash"><code># ROCm 7.2 image (recommended for Kimi-K2.5 optimized config)
+docker pull rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260317
+
+# ROCm 7.0 image (for Qwen3.5 / GLM-5)
 docker pull rocm/sgl-dev:v0.5.9-rocm700-mi35x-20260310</code></pre>
         </div>
         <div class="mt-4 code-block-wrapper">
@@ -551,11 +554,11 @@ curl -s http://localhost:30000/v1/chat/completions \
           </div>
           <div class="bg-surface-2 rounded-lg p-3">
             <div class="text-gray-500">Decode Throughput</div>
-            <div class="text-white font-display mt-1">35.8 tok/s rocm700 &bull; 26.5 tok/s rocm720 (TP8, BS1)</div>
+            <div class="text-white font-display mt-1"><span class="text-green-400">42.6 tok/s</span> optimized (TP8, BS1)</div>
           </div>
           <div class="bg-surface-2 rounded-lg p-3">
             <div class="text-gray-500">Attention Backend</div>
-            <div class="text-white font-display mt-1">triton</div>
+            <div class="text-white font-display mt-1">triton decode + aiter prefill</div>
           </div>
           <div class="bg-surface-2 rounded-lg p-3">
             <div class="text-gray-500">Status</div>
@@ -563,76 +566,161 @@ curl -s http://localhost:30000/v1/chat/completions \
           </div>
         </div>
 
-        <!-- TP=8 Launch (Verified) -->
+        <!-- Optimized TP=8 Setup (Recommended) -->
         <div class="mb-6">
           <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded bg-green-500/15 text-green-400 text-[10px] font-display">BEST</span>
             <span class="px-2 py-0.5 rounded bg-[#ED1C24]/15 text-[#ED1C24] text-[10px] font-display">TP=8</span>
-            Launch Server (Verified)
+            Optimized Serving (Verified, 38.6% faster)
           </h4>
-          <p class="text-xs text-gray-500 mb-3">Tested end-to-end on 8&times; MI355X. Use <code class="text-gray-400">Dockerfile.kimi-opt</code> which includes aiter stub, quark patch, and PR #19552 tool call parser fixes.</p>
-          <div class="code-block-wrapper">
-            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; build optimized image</div>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre class="language-bash"><code># Build from the cookbook repo (includes PR #19552 tool call fixes)
-docker build -t sglang-kimi-opt:v0.5.9-rocm700-mi35x-20260310 \
-    -f Dockerfile.kimi-opt .</code></pre>
+          <p class="text-xs text-gray-500 mb-3">
+            Achieves <strong class="text-white">23.5ms decode median</strong> (42.6 tok/s) vs 38.3ms baseline &mdash; a <strong class="text-green-400">38.6% improvement</strong>.
+            Uses the stock ROCm 7.2 image with optimized sglang and aiter branches checked out inside the container.
+            Three key optimizations: GEMM A16W16 small-M configs (BLOCK_SIZE_M=16&ndash;64 for M=1 decode), MoE Triton kernel configs (E=384, N=128 for MI355X),
+            and hybrid attention (triton decode + aiter prefill).
+          </p>
+
+          <!-- Step 0: Pull Image -->
+          <div class="mb-4">
+            <div class="text-xs font-semibold text-gray-400 mb-2">Step 0: Pull Base Image</div>
+            <div class="code-block-wrapper">
+              <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre class="language-bash"><code>docker pull rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260317</code></pre>
+            </div>
           </div>
-          <div class="mt-4 code-block-wrapper">
-            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; docker run</div>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre class="language-bash"><code>docker run -d \
-    --name kimi-k2.5-serve \
-    --ipc=host --network=host --privileged \
-    --shm-size 32G \
-    --ulimit core=0:0 \
-    --cap-add=CAP_SYS_ADMIN --cap-add=SYS_PTRACE \
-    --device=/dev/kfd --device=/dev/dri \
-    --group-add video \
-    --security-opt seccomp=unconfined \
-    --security-opt apparmor=unconfined \
-    -e HF_HUB_OFFLINE=1 \
+
+          <!-- Step 1: Start Container -->
+          <div class="mb-4">
+            <div class="text-xs font-semibold text-gray-400 mb-2">Step 1: Start Container</div>
+            <div class="code-block-wrapper">
+              <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; docker run</div>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre class="language-bash"><code>docker run -d --name kimi-k25-server \
+    --device /dev/kfd --device /dev/dri \
+    --shm-size 64g --network host \
+    --cap-add SYS_PTRACE --group-add video \
+    -e GPU_COREDUMP_ENABLE=0 \
     -e SGLANG_ROCM_FUSED_DECODE_MLA=0 \
-    -v /mnt/dcgpuval/huggingface:/sgl-workspace/models \
-    sglang-kimi-opt:v0.5.9-rocm700-mi35x-20260310 \
-    python3 -m sglang.launch_server \
-        --model-path /sgl-workspace/models/hub/models--moonshotai--Kimi-K2.5/snapshots/54383e83fa343a1331754112fb9e3410c55efa2f \
-        --served-model-name kimi-k2.5 \
-        --tp 8 \
-        --attention-backend triton \
-        --trust-remote-code \
-        --mem-fraction-static 0.80 \
-        --watchdog-timeout 1200 \
-        --host 0.0.0.0 \
-        --port 30000 \
-        --tool-call-parser kimi_k2 \
-        --reasoning-parser kimi_k2</code></pre>
+    -e SGLANG_USE_AITER=1 \
+    -v /path/to/huggingface:/root/.cache/huggingface \
+    rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260317 \
+    sleep infinity</code></pre>
+            </div>
+            <p class="text-[10px] text-gray-600 mt-1">Replace <code class="text-gray-500">/path/to/huggingface</code> with the parent directory containing the <code class="text-gray-500">hub/</code> folder with <code class="text-gray-500">models--moonshotai--Kimi-K2.5</code>.</p>
           </div>
-          <div class="mt-3 bg-blue-500/5 border border-blue-500/15 rounded-lg p-3">
+
+          <!-- Step 2: Apply Optimized Branches -->
+          <div class="mb-4">
+            <div class="text-xs font-semibold text-gray-400 mb-2">Step 2a: Apply Optimized sglang Branch (MoE Triton configs)</div>
+            <div class="code-block-wrapper">
+              <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre class="language-bash"><code>docker exec kimi-k25-server bash -c '
+cd /sgl-workspace/sglang
+git stash &amp;&amp; git clean -fd
+git remote add fork https://github.com/Arist12/sglang.git
+git fetch fork kimi-k25-optimize-v2
+git checkout fork/kimi-k25-optimize-v2
+cd python &amp;&amp; pip install -e .
+'</code></pre>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <div class="text-xs font-semibold text-gray-400 mb-2">Step 2b: Apply Optimized aiter Branch (GEMM A16W16 small-M configs)</div>
+            <div class="code-block-wrapper">
+              <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre class="language-bash"><code>docker exec kimi-k25-server bash -c '
+cd /sgl-workspace/aiter
+git stash &amp;&amp; git clean -fd
+git remote add fork https://github.com/Arist12/aiter.git
+git fetch fork kimi-k25-optimize-v2
+git checkout fork/kimi-k25-optimize-v2
+pip install .
+'</code></pre>
+            </div>
+            <div class="mt-2 bg-red-500/5 border border-red-500/15 rounded-lg p-3">
+              <p class="text-xs text-red-400"><strong>Must use <code class="text-red-300">pip install .</code> (non-editable) for aiter.</strong>
+                Using <code class="text-red-300">pip install -e .</code> creates a broken namespace package that fails to resolve compiled C extensions.
+                Verify with: <code class="text-red-300">python3 -c "from aiter import dynamic_per_tensor_quant; print('OK')"</code></p>
+            </div>
+          </div>
+
+          <!-- Step 3: Launch Server -->
+          <div class="mb-4">
+            <div class="text-xs font-semibold text-gray-400 mb-2">Step 3: Launch Server</div>
+            <div class="code-block-wrapper">
+              <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre class="language-bash"><code>docker exec -d kimi-k25-server bash -c '
+export SGLANG_ROCM_FUSED_DECODE_MLA=0
+export SGLANG_USE_AITER=1
+/opt/venv/bin/python3 -m sglang.launch_server \
+    --model-path moonshotai/Kimi-K2.5 \
+    --tp 8 \
+    --trust-remote-code \
+    --decode-attention-backend triton \
+    --prefill-attention-backend aiter \
+    --mem-fraction-static 0.85 \
+    --reasoning-parser kimi_k2 \
+    --tool-call-parser kimi_k2 \
+    --host 0.0.0.0 --port 30000 \
+    > /tmp/server.log 2>&1
+'</code></pre>
+            </div>
+          </div>
+
+          <div class="bg-blue-500/5 border border-blue-500/15 rounded-lg p-3 mb-3">
             <p class="text-xs text-blue-400"><strong>Key flags:</strong>
-              <code class="text-blue-300">SGLANG_ROCM_FUSED_DECODE_MLA=0</code> avoids MLA tuple-unpack crash with triton backend;
+              <code class="text-blue-300">--decode-attention-backend triton</code> + <code class="text-blue-300">--prefill-attention-backend aiter</code> hybrid attention (triton for decode, aiter ASM kernels for prefill);
+              <code class="text-blue-300">SGLANG_ROCM_FUSED_DECODE_MLA=0</code> required (image default is 1);
+              <code class="text-blue-300">SGLANG_USE_AITER=1</code> enables aiter prefill path;
+              <code class="text-blue-300">--mem-fraction-static 0.85</code> for max KV cache;
+              <code class="text-blue-300">--reasoning-parser kimi_k2</code> separates reasoning from content;
               <code class="text-blue-300">--tool-call-parser kimi_k2</code> enables structured tool calling;
-              <code class="text-blue-300">--reasoning-parser kimi_k2</code> separates &lt;think&gt; blocks from content;
-              <code class="text-blue-300">--host 0.0.0.0</code> for network access from other nodes;
-              CUDA graph <strong>enabled</strong> (default) for 2.6&times; decode speedup.</p>
+              CUDA graph <strong>enabled</strong> (default).</p>
           </div>
-          <div class="mt-3 bg-yellow-500/5 border border-yellow-500/15 rounded-lg p-3">
-            <p class="text-xs text-yellow-400"><strong>Tool calling note:</strong>
-              The W4A16 quantized Kimi-K2.5 model has known limitations with tool calling: empty arguments for some tool schemas (e.g. <code class="text-yellow-300">path</code> parameters) and multi-turn degradation at high temperatures.
-              Use <code class="text-yellow-300">tool_choice: &quot;required&quot;</code> and <code class="text-yellow-300">temperature &le; 0.6</code> for best reliability.
-              See <a href="https://github.com/sgl-project/sglang/pull/19552" class="text-yellow-300 hover:underline">PR #19552</a> for parser fixes (included in <code class="text-yellow-300">Dockerfile.kimi-opt</code>).</p>
+
+          <div class="bg-orange-500/5 border border-orange-500/15 rounded-lg p-3">
+            <p class="text-xs text-orange-400"><strong>What the optimized branches change:</strong>
+              <strong>sglang</strong> (<a href="https://github.com/Arist12/sglang/tree/kimi-k25-optimize-v2" class="text-orange-300 hover:underline">Arist12/sglang:kimi-k25-optimize-v2</a>):
+              MoE Triton kernel configs for <code class="text-orange-300">E=384,N=128</code> on MI355X with BLOCK_SIZE_M=16 for batch=1 decode.
+              <strong>aiter</strong> (<a href="https://github.com/Arist12/aiter/tree/kimi-k25-optimize-v2" class="text-orange-300 hover:underline">Arist12/aiter:kimi-k25-optimize-v2</a>):
+              GEMM A16W16 small-M configs (M_LEQ_4/8/16/32/64 with BLOCK_SIZE_M=16&ndash;64, default was 256).</p>
           </div>
         </div>
 
-        <!-- Grid Search Benchmark Results -->
+        <!-- Optimized Benchmark Results -->
         <div class="mb-6">
           <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
             <span class="px-2 py-0.5 rounded bg-green-500/15 text-green-400 text-[10px] font-display">BENCH</span>
-            Grid Search Results &mdash; rocm700 vs rocm720 (TP=8, batch=1)
+            Optimized Benchmark Results (TP=8, batch=1)
           </h4>
-          <p class="text-xs text-gray-500 mb-3">18 configs tested across 2 ROCm images, 3 mem-fractions, 3 chunked-prefill values. Best results shown below (cp=0, <code class="text-gray-400">--schedule-policy lpm</code>).</p>
 
           <div class="overflow-x-auto mb-4">
-            <p class="text-xs text-gray-400 mb-2 font-semibold">rocm700 (v0.5.9-rocm700-mi35x-20260319) &mdash; Best for decode throughput</p>
+            <p class="text-xs text-gray-400 mb-2 font-semibold">bench_one_batch (raw decode latency, input=8192, output=2048)</p>
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="text-gray-500 border-b border-white/5">
+                  <th class="text-left py-2 pr-4 font-medium">Configuration</th>
+                  <th class="text-left py-2 pr-4 font-medium">Decode Median</th>
+                  <th class="text-left py-2 pr-4 font-medium">Prefill</th>
+                  <th class="text-left py-2 font-medium">Improvement</th>
+                </tr>
+              </thead>
+              <tbody class="font-display text-gray-300">
+                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">Baseline (triton attn, default configs)</td><td class="pr-4">38.3 ms</td><td class="pr-4">&mdash;</td><td>&mdash;</td></tr>
+                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">+ AITER prefill attention</td><td class="pr-4">34.4 ms</td><td class="pr-4">&mdash;</td><td>10.2%</td></tr>
+                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">+ GEMM A16W16 small-M tuning</td><td class="pr-4">24.3 ms</td><td class="pr-4">&mdash;</td><td>36.6%</td></tr>
+                <tr class="bench-row font-semibold text-white"><td class="py-2 pr-4">+ MoE Triton config tuning (final)</td><td class="pr-4 text-green-400">23.5 ms (42.6 tok/s)</td><td class="pr-4 text-green-400">637 ms (12,847 tok/s)</td><td class="text-green-400">38.6%</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="overflow-x-auto mb-4">
+            <p class="text-xs text-gray-400 mb-2 font-semibold">bench_one_batch_server (server throughput, output=2048)</p>
             <table class="w-full text-xs">
               <thead>
                 <tr class="text-gray-500 border-b border-white/5">
@@ -644,70 +732,64 @@ docker build -t sglang-kimi-opt:v0.5.9-rocm700-mi35x-20260310 \
                 </tr>
               </thead>
               <tbody class="font-display text-gray-300">
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">3.66 s</td><td class="pr-4 text-green-400">33.62 tok/s</td><td>18.86 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">1.54 s</td><td class="pr-4 text-green-400">35.54 tok/s</td><td>16.57 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">5.58 s</td><td class="pr-4 text-green-400">23.36 tok/s</td><td>27.41 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">5.57 s</td><td class="pr-4 text-green-400">23.31 tok/s</td><td>43.93 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">16,384</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">15.85 s</td><td class="pr-4 text-green-400">16.86 tok/s</td><td>46.17 s</td></tr>
-                <tr class="bench-row"><td class="py-2 pr-4">16,384</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">15.61 s</td><td class="pr-4 text-green-400">16.80 tok/s</td><td>26.57 s</td></tr>
+                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">2,048</td><td class="pr-4 text-yellow-400">0.27 s</td><td class="pr-4 text-green-400">45.19 tok/s</td><td>45.32 s</td></tr>
+                <tr class="bench-row"><td class="py-2 pr-4">2,048</td><td class="pr-4">2,048</td><td class="pr-4 text-yellow-400">0.33 s</td><td class="pr-4 text-green-400">44.67 tok/s</td><td>45.84 s</td></tr>
               </tbody>
             </table>
           </div>
 
-          <div class="overflow-x-auto mb-4">
-            <p class="text-xs text-gray-400 mb-2 font-semibold">rocm720 (v0.5.9-rocm720-mi35x-20260320) &mdash; Best for TTFT</p>
-            <table class="w-full text-xs">
-              <thead>
-                <tr class="text-gray-500 border-b border-white/5">
-                  <th class="text-left py-2 pr-4 font-medium">Input</th>
-                  <th class="text-left py-2 pr-4 font-medium">Output</th>
-                  <th class="text-left py-2 pr-4 font-medium">TTFT</th>
-                  <th class="text-left py-2 pr-4 font-medium">Decode</th>
-                  <th class="text-left py-2 font-medium">Total Latency</th>
-                </tr>
-              </thead>
-              <tbody class="font-display text-gray-300">
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">1.40 s</td><td class="pr-4 text-green-400">26.47 tok/s</td><td>20.70 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.84 s</td><td class="pr-4 text-green-400">26.34 tok/s</td><td>39.67 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">4.17 s</td><td class="pr-4 text-green-400">19.48 tok/s</td><td>30.40 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">4.20 s</td><td class="pr-4 text-green-400">19.37 tok/s</td><td>21.95 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">16,384</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">9.98 s</td><td class="pr-4 text-green-400">15.19 tok/s</td><td>43.56 s</td></tr>
-                <tr class="bench-row"><td class="py-2 pr-4">16,384</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">10.01 s</td><td class="pr-4 text-green-400">15.14 tok/s</td><td>77.57 s</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="overflow-x-auto mb-4">
-            <p class="text-xs text-gray-400 mb-2 font-semibold">Concurrent Throughput (ISL=1024, OSL=512, cp=0)</p>
-            <table class="w-full text-xs">
-              <thead>
-                <tr class="text-gray-500 border-b border-white/5">
-                  <th class="text-left py-2 pr-4 font-medium">Image</th>
-                  <th class="text-left py-2 pr-4 font-medium">Conc=1</th>
-                  <th class="text-left py-2 pr-4 font-medium">Conc=2</th>
-                  <th class="text-left py-2 pr-4 font-medium">Conc=4</th>
-                  <th class="text-left py-2 font-medium">Conc=8</th>
-                </tr>
-              </thead>
-              <tbody class="font-display text-gray-300">
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">rocm700 mem=0.80</td><td class="pr-4">34.18</td><td class="pr-4">58.93</td><td class="pr-4">86.31</td><td class="text-green-400">108.37 tok/s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">rocm700 mem=0.85</td><td class="pr-4">34.18</td><td class="pr-4">56.49</td><td class="pr-4">80.90</td><td class="text-green-400">107.18 tok/s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">rocm720 mem=0.80</td><td class="pr-4">25.56</td><td class="pr-4">47.73</td><td class="pr-4">72.00</td><td class="text-green-400">106.58 tok/s</td></tr>
-                <tr class="bench-row"><td class="py-2 pr-4">rocm720 mem=0.85</td><td class="pr-4">25.66</td><td class="pr-4">48.34</td><td class="pr-4">73.79</td><td class="text-green-400">105.23 tok/s</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="mt-3 bg-green-500/5 border border-green-500/15 rounded-lg p-3">
-            <p class="text-xs text-green-400"><strong>Grid search findings:</strong>
-              rocm700 wins decode by ~35% (35 vs 26 tok/s); rocm720 wins TTFT by ~50% (0.8s vs 1.5s).
-              <code class="text-green-300">mem-fraction</code> has minimal impact on decode speed.
-              <code class="text-green-300">chunked-prefill &gt; 0</code> crashes concurrent throughput on reasoning models &mdash; use cp=0.
-              3 pending PRs (aiter MLA head-padding, GEMM tuning, decode-path opts) not merged in any tested image.</p>
-          </div>
-
-          <p class="text-[10px] text-gray-600 mt-2">Grid search: 18 configs &bull; rocm700-20260319 + rocm720-20260320 &bull; 8&times; MI355X &bull; triton backend &bull; CUDA graph on &bull; March 2026</p>
+          <p class="text-[10px] text-gray-600 mt-2">Image: rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260317 + optimized branches &bull; 8&times; MI355X &bull; triton decode + aiter prefill &bull; CUDA graph on &bull; March 2026</p>
         </div>
+
+        <!-- Previous Grid Search Results (collapsed) -->
+        <details class="mb-6">
+          <summary class="text-sm font-semibold text-gray-400 cursor-pointer hover:text-gray-300 mb-3">Previous Results: Grid Search (stock images, no optimized branches)</summary>
+          <div class="mt-3 bg-surface-2 rounded-lg p-4">
+            <p class="text-xs text-gray-500 mb-3">18 configs tested across 2 ROCm images with stock sglang/aiter. These results are superseded by the optimized config above.</p>
+
+            <div class="overflow-x-auto mb-4">
+              <p class="text-xs text-gray-400 mb-2 font-semibold">rocm700 (v0.5.9-rocm700-mi35x-20260319)</p>
+              <table class="w-full text-xs">
+                <thead>
+                  <tr class="text-gray-500 border-b border-white/5">
+                    <th class="text-left py-2 pr-4 font-medium">Input</th>
+                    <th class="text-left py-2 pr-4 font-medium">Output</th>
+                    <th class="text-left py-2 pr-4 font-medium">TTFT</th>
+                    <th class="text-left py-2 pr-4 font-medium">Decode</th>
+                    <th class="text-left py-2 font-medium">Total Latency</th>
+                  </tr>
+                </thead>
+                <tbody class="font-display text-gray-300">
+                  <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">3.66 s</td><td class="pr-4">33.62 tok/s</td><td>18.86 s</td></tr>
+                  <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">1.54 s</td><td class="pr-4">35.54 tok/s</td><td>16.57 s</td></tr>
+                  <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">5.58 s</td><td class="pr-4">23.36 tok/s</td><td>27.41 s</td></tr>
+                  <tr class="bench-row"><td class="py-2 pr-4">8,192</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">5.57 s</td><td class="pr-4">23.31 tok/s</td><td>43.93 s</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="overflow-x-auto">
+              <p class="text-xs text-gray-400 mb-2 font-semibold">rocm720 (v0.5.9-rocm720-mi35x-20260320)</p>
+              <table class="w-full text-xs">
+                <thead>
+                  <tr class="text-gray-500 border-b border-white/5">
+                    <th class="text-left py-2 pr-4 font-medium">Input</th>
+                    <th class="text-left py-2 pr-4 font-medium">Output</th>
+                    <th class="text-left py-2 pr-4 font-medium">TTFT</th>
+                    <th class="text-left py-2 pr-4 font-medium">Decode</th>
+                    <th class="text-left py-2 font-medium">Total Latency</th>
+                  </tr>
+                </thead>
+                <tbody class="font-display text-gray-300">
+                  <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">1.40 s</td><td class="pr-4">26.47 tok/s</td><td>20.70 s</td></tr>
+                  <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.84 s</td><td class="pr-4">26.34 tok/s</td><td>39.67 s</td></tr>
+                  <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">4.17 s</td><td class="pr-4">19.48 tok/s</td><td>30.40 s</td></tr>
+                  <tr class="bench-row"><td class="py-2 pr-4">8,192</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">4.20 s</td><td class="pr-4">19.37 tok/s</td><td>21.95 s</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </details>
       </div>
 
       <!-- Eagle3 Speculative Decoding -->
@@ -715,7 +797,7 @@ docker build -t sglang-kimi-opt:v0.5.9-rocm700-mi35x-20260310 \
         <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
             <h4 class="text-sm font-semibold text-white flex items-center gap-2">
-              <span class="px-2 py-0.5 rounded bg-[#ED1C24]/15 text-[#ED1C24] text-[10px] font-display">NEW</span>
+              <span class="px-2 py-0.5 rounded bg-[#ED1C24]/15 text-[#ED1C24] text-[10px] font-display">ADDON</span>
               Eagle3 Speculative Decoding
             </h4>
             <p class="text-xs text-gray-500 mt-1">1.8&times; decode speedup with <a href="https://huggingface.co/lightseekorg/kimi-k2.5-eagle3" class="text-[#ED1C24] hover:underline">lightseekorg/kimi-k2.5-eagle3</a> (3B, 1 layer, BF16). Supports greedy and non-greedy (temp&gt;0) on ROCm.</p>
@@ -727,31 +809,32 @@ docker build -t sglang-kimi-opt:v0.5.9-rocm700-mi35x-20260310 \
         </div>
 
         <div class="code-block-wrapper mb-4">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; Eagle3 launch (add to base Kimi server)</div>
+          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; Eagle3 launch (add --speculative flags to the optimized server command)</div>
           <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code>docker run -d \
-    --name kimi-k2.5-eagle3 \
-    --ipc=host --network=host --privileged --shm-size 32G \
-    --cap-add=CAP_SYS_ADMIN --cap-add=SYS_PTRACE \
-    --device=/dev/kfd --device=/dev/dri --group-add video \
-    --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
-    -e HF_HUB_OFFLINE=1 -e SGLANG_ROCM_FUSED_DECODE_MLA=0 \
-    -v /mnt/dcgpuval/huggingface:/sgl-workspace/models \
-    sglang-kimi-opt:v0.5.9-rocm700-mi35x-20260310 \
-    python3 -m sglang.launch_server \
-        --model-path moonshotai/Kimi-K2.5 \
-        --served-model-name kimi-k2.5 \
-        --tp 8 --attention-backend triton --trust-remote-code \
-        --mem-fraction-static 0.75 --watchdog-timeout 1200 \
-        --host 0.0.0.0 --port 30000 \
-        --speculative-algorithm EAGLE3 \
-        --speculative-draft-model-path lightseekorg/kimi-k2.5-eagle3</code></pre>
+          <pre class="language-bash"><code># After applying the optimized branches (Steps 2a/2b above), launch with Eagle3:
+docker exec -d kimi-k25-server bash -c '
+export SGLANG_ROCM_FUSED_DECODE_MLA=0
+export SGLANG_USE_AITER=1
+/opt/venv/bin/python3 -m sglang.launch_server \
+    --model-path moonshotai/Kimi-K2.5 \
+    --tp 8 --trust-remote-code \
+    --decode-attention-backend triton \
+    --prefill-attention-backend aiter \
+    --mem-fraction-static 0.75 \
+    --reasoning-parser kimi_k2 \
+    --tool-call-parser kimi_k2 \
+    --host 0.0.0.0 --port 30000 \
+    --speculative-algorithm EAGLE3 \
+    --speculative-draft-model-path lightseekorg/kimi-k2.5-eagle3 \
+    > /tmp/server.log 2>&1
+'</code></pre>
         </div>
 
         <div class="bg-orange-500/5 border border-orange-500/15 rounded-lg p-3 mb-4">
           <p class="text-xs text-orange-400"><strong>Must use <code class="text-orange-300">--speculative-algorithm EAGLE3</code></strong> (not <code class="text-orange-300">EAGLE</code>).
             Using <code class="text-orange-300">EAGLE</code> silently degrades accept_length to 1.0 because it skips the 3-layer aux hidden state capture that Eagle3 requires.
-            See <a href="https://github.com/sgl-project/sglang/pull/21272" class="text-orange-300 hover:underline">PR #21272</a> for auto-detection fix.</p>
+            See <a href="https://github.com/sgl-project/sglang/pull/21272" class="text-orange-300 hover:underline">PR #21272</a> for auto-detection fix.
+            Note <code class="text-orange-300">--mem-fraction-static 0.75</code> (reduced from 0.85) to leave VRAM for the draft model.</p>
         </div>
 
         <div class="mb-4">
@@ -776,7 +859,7 @@ docker build -t sglang-kimi-opt:v0.5.9-rocm700-mi35x-20260310 \
               </tbody>
             </table>
           </div>
-          <p class="text-[10px] text-gray-600 mt-2">Accept length: greedy 2.3&ndash;3.6, non-greedy 3.0&ndash;3.4 &bull; Baseline: 35.8 tok/s &bull; <code class="text-gray-500">--mem-fraction-static 0.75</code> required for Eagle3</p>
+          <p class="text-[10px] text-gray-600 mt-2">Accept length: greedy 2.3&ndash;3.6, non-greedy 3.0&ndash;3.4 &bull; Baseline: 35.8 tok/s (rocm700 stock) &bull; <code class="text-gray-500">--mem-fraction-static 0.75</code> required for Eagle3</p>
         </div>
 
         <div class="bg-blue-500/5 border border-blue-500/15 rounded-lg p-3 mb-4">
@@ -798,19 +881,29 @@ docker build -t sglang-kimi-opt:v0.5.9-rocm700-mi35x-20260310 \
         <div class="code-block-wrapper">
           <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
           <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code># Wait for "The server is fired up and ready to roll!" in logs
-docker logs -f kimi-k2.5-serve
+          <pre class="language-bash"><code># Monitor startup logs (wait for "The server is fired up and ready to roll!")
+docker exec kimi-k25-server tail -f /tmp/server.log
 
 # Health check
 curl http://localhost:30000/health
 
-# Quick inference test
+# Chat completion (note reasoning_content field from --reasoning-parser kimi_k2)
 curl -s http://localhost:30000/v1/chat/completions \
     -H "Content-Type: application/json" \
     -d '{
-      "model": "kimi-k2.5",
-      "messages": [{"role": "user", "content": "Hello, who are you?"}],
-      "max_tokens": 64
+      "model": "moonshotai/Kimi-K2.5",
+      "messages": [{"role": "user", "content": "Hello!"}],
+      "max_tokens": 100
+    }' | python3 -m json.tool
+
+# Tool calling test (note tool_calls array from --tool-call-parser kimi_k2)
+curl -s http://localhost:30000/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{
+      "model": "moonshotai/Kimi-K2.5",
+      "messages": [{"role": "user", "content": "What is the weather in San Francisco?"}],
+      "tools": [{"type":"function","function":{"name":"get_weather","description":"Get weather for a location","parameters":{"type":"object","properties":{"location":{"type":"string"}},"required":["location"]}}}],
+      "max_tokens": 200
     }' | python3 -m json.tool</code></pre>
         </div>
       </div>
