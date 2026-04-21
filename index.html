@@ -81,7 +81,7 @@
 <header class="pt-28 pb-16 px-6">
   <div class="max-w-6xl mx-auto">
     <div class="inline-block px-3 py-1 rounded-full bg-[#ED1C2418] border border-[#ED1C2430] text-[#ED1C24] text-xs font-medium mb-6">
-      MI355X &middot; ROCm 7.2 &middot; SGLang v0.5.9
+      MI355X &middot; ROCm 7.2 &middot; SGLang v0.5.9/v0.5.10rc0
     </div>
     <h1 class="text-4xl md:text-5xl font-bold text-white mb-4 leading-tight">
       SGLang AMD<br>Cookbook
@@ -89,7 +89,8 @@
     <p class="text-gray-500 max-w-xl text-lg leading-relaxed">
       Copy-paste ready commands for deploying and benchmarking
       <span class="text-gray-300">Qwen3.5</span>,
-      <span class="text-gray-300">Kimi-K2.5</span>, and
+      <span class="text-gray-300">Kimi-K2.5</span>,
+      <span class="text-gray-300">Kimi-K2.6</span>, and
       <span class="text-gray-300">GLM-5</span>
       on AMD Instinct MI355X GPUs.
     </p>
@@ -101,7 +102,7 @@
         <span class="text-gray-500">Memory BW:</span> <span class="text-white">8 TB/s per GPU</span>
       </div>
       <div class="px-3 py-1.5 rounded-lg bg-surface-1 border border-white/5 text-xs">
-        <span class="text-gray-500">Updated:</span> <span class="text-white">March 2026</span>
+        <span class="text-gray-500">Updated:</span> <span class="text-white">April 2026</span>
       </div>
     </div>
   </div>
@@ -149,6 +150,11 @@ cat /proc/sys/kernel/numa_balancing  # Should output 0</code></pre>
           </div>
           <div class="flex items-start gap-2 p-2 rounded bg-surface-2">
             <span class="text-green-500 shrink-0">&#10003;</span>
+            <span class="text-gray-500 shrink-0">Kimi-K2.6:</span>
+            <span class="text-green-400 break-all">models--moonshotai--Kimi-K2.6/ <span class="text-gray-600">(595 GB)</span></span>
+          </div>
+          <div class="flex items-start gap-2 p-2 rounded bg-surface-2">
+            <span class="text-green-500 shrink-0">&#10003;</span>
             <span class="text-gray-500 shrink-0">GLM-5:</span>
             <span class="text-green-400 break-all">models--zai-org--GLM-5-FP8/ <span class="text-gray-600">(705 GB)</span></span>
           </div>
@@ -162,7 +168,8 @@ cat /proc/sys/kernel/numa_balancing  # Should output 0</code></pre>
           Docker Images
         </h3>
         <p class="text-xs text-gray-500 mb-4">
-          Two base images are available. The ROCm 7.2 image (<code class="text-gray-400">20260317</code>) is recommended for Kimi-K2.5 with optimized branches.
+          Three images are useful today. The ROCm 7.2 image (<code class="text-gray-400">20260317</code>) remains the Kimi-K2.5 optimized base.
+          Kimi-K2.6 is validated on the ROCm 7.2 RC image (<code class="text-gray-400">20260420</code>) and also available as a ready-to-run Docker Hub image.
           For Qwen3.5, use the ROCm 7.0 image (<code class="text-gray-400">20260310</code>) with the fixed Dockerfile.
         </p>
         <div class="code-block-wrapper">
@@ -170,6 +177,12 @@ cat /proc/sys/kernel/numa_balancing  # Should output 0</code></pre>
           <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           <pre class="language-bash"><code># ROCm 7.2 image (recommended for Kimi-K2.5 optimized config)
 docker pull rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260317
+
+# ROCm 7.2 RC image (validated Kimi-K2.6 base)
+docker pull rocm/sgl-dev:v0.5.10rc0-rocm720-mi35x-20260420
+
+# Ready-to-run Kimi-K2.6 image
+docker pull jhinpan/sglang-k26-mi355x:v0.5.10rc0-rocm720-20260420
 
 # ROCm 7.0 image (for Qwen3.5 / GLM-5)
 docker pull rocm/sgl-dev:v0.5.9-rocm700-mi35x-20260310</code></pre>
@@ -199,7 +212,7 @@ docker build -t sglang-test:v0.5.9-rocm700-mi35x-20260310 \
 <section id="models" class="py-12 px-6">
   <div class="max-w-6xl mx-auto">
     <h2 class="text-2xl font-bold text-white mb-2">Model Deployment</h2>
-    <p class="text-sm text-gray-500 mb-8">Select a model below to see its launch configuration for both TP=4 and TP=8.</p>
+    <p class="text-sm text-gray-500 mb-8">Select a model below to see its validated launch configuration and benchmark notes.</p>
 
     <!-- Model Tabs -->
     <div class="flex gap-2 mb-8 flex-wrap">
@@ -208,6 +221,9 @@ docker build -t sglang-test:v0.5.9-rocm700-mi35x-20260310 \
       </button>
       <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium" onclick="switchModel('kimi')" id="tab-kimi">
         Kimi-K2.5
+      </button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium" onclick="switchModel('k26')" id="tab-k26">
+        Kimi-K2.6
       </button>
       <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium" onclick="switchModel('glm5')" id="tab-glm5">
         GLM-5-FP8
@@ -909,6 +925,191 @@ curl -s http://localhost:30000/v1/chat/completions \
       </div>
     </div>
 
+    <!-- ==================== KIMI K2.6 ==================== -->
+    <div id="model-k26" class="model-section">
+      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
+        <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
+          <div>
+            <h3 class="text-lg font-bold text-white">Kimi-K2.6</h3>
+            <p class="text-xs text-gray-500 mt-1">Mixture-of-Experts &mdash; 1T total params, 32B active per token, W4A16 quantized</p>
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            <span class="px-2 py-0.5 rounded text-[10px] bg-purple-500/15 text-purple-400 border border-purple-500/20">MoE</span>
+            <span class="px-2 py-0.5 rounded text-[10px] bg-orange-500/15 text-orange-400 border border-orange-500/20">W4A16</span>
+            <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 border border-green-500/20">595 GB</span>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-6">
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">HF Path</div>
+            <div class="text-white font-display mt-1">moonshotai/Kimi-K2.6</div>
+          </div>
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">Decode Throughput</div>
+            <div class="text-white font-display mt-1"><span class="text-green-400">38.1&ndash;40.0 tok/s</span> validated (TP4, BS1)</div>
+          </div>
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">Attention Backend</div>
+            <div class="text-white font-display mt-1">triton decode + aiter prefill</div>
+          </div>
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">Status</div>
+            <div class="text-green-400 font-display mt-1">Verified &check;</div>
+          </div>
+        </div>
+
+        <div class="mb-6">
+          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded bg-green-500/15 text-green-400 text-[10px] font-display">BEST</span>
+            <span class="px-2 py-0.5 rounded bg-[#ED1C24]/15 text-[#ED1C24] text-[10px] font-display">TP=4</span>
+            Validated Serving (low-concurrency, BS=1)
+          </h4>
+          <p class="text-xs text-gray-500 mb-3">
+            Kimi-K2.6 reuses the K2.5 MoE/MLA architecture but ships newer weights and needs an extra MI355X fused-MoE tuning file for the <code class="text-gray-400">E=384, N=256</code> shape.
+            The validated setup below uses 4 of the 8 MI355X GPUs on the node, hybrid attention, CUDA graph enabled, and a bounded DeepSeek weight-loader threadpool.
+          </p>
+
+          <div class="mb-4">
+            <div class="text-xs font-semibold text-gray-400 mb-2">Step 0: Pull Image</div>
+            <div class="code-block-wrapper">
+              <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre class="language-bash"><code># Ready-to-run image
+docker pull jhinpan/sglang-k26-mi355x:v0.5.10rc0-rocm720-20260420
+
+# Optional stock base image (if you want to rebuild from source)
+docker pull rocm/sgl-dev:v0.5.10rc0-rocm720-mi35x-20260420</code></pre>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <div class="text-xs font-semibold text-gray-400 mb-2">Step 1: Start Container</div>
+            <div class="code-block-wrapper">
+              <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; docker run</div>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre class="language-bash"><code>docker run -d --name kimi-k26-server \
+    --device /dev/kfd --device /dev/dri \
+    --shm-size 64g --network host \
+    --ipc=host --privileged \
+    --cap-add SYS_PTRACE --group-add video \
+    --security-opt seccomp=unconfined \
+    --ulimit core=0:0 \
+    -e GPU_COREDUMP_ENABLE=0 \
+    -e SGLANG_ROCM_FUSED_DECODE_MLA=0 \
+    -e SGLANG_USE_AITER=1 \
+    -e SGLANG_DEEPSEEK_LOAD_MAX_WORKERS=4 \
+    -v /path/to/huggingface:/sgl-workspace/models \
+    jhinpan/sglang-k26-mi355x:v0.5.10rc0-rocm720-20260420 \
+    sleep infinity</code></pre>
+            </div>
+            <p class="text-[10px] text-gray-600 mt-1">Replace <code class="text-gray-500">/path/to/huggingface</code> with the parent directory containing <code class="text-gray-500">moonshotai/Kimi-K2.6</code> (or the local HF cache that includes that model).</p>
+          </div>
+
+          <div class="mb-4">
+            <div class="text-xs font-semibold text-gray-400 mb-2">Step 2: Launch Server</div>
+            <div class="code-block-wrapper">
+              <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <pre class="language-bash"><code>docker exec -d kimi-k26-server bash -c '
+export HIP_VISIBLE_DEVICES=0,1,2,3
+export SGLANG_ROCM_FUSED_DECODE_MLA=0
+export SGLANG_USE_AITER=1
+export SGLANG_DEEPSEEK_LOAD_MAX_WORKERS=4
+/opt/venv/bin/python3 -m sglang.launch_server \
+    --model-path /sgl-workspace/models/Kimi-K2.6 \
+    --served-model-name Kimi-K2.6 \
+    --tensor-parallel-size 4 \
+    --trust-remote-code \
+    --decode-attention-backend triton \
+    --prefill-attention-backend aiter \
+    --disable-custom-all-reduce \
+    --mem-fraction-static 0.85 \
+    --context-length 128000 \
+    --skip-server-warmup \
+    --reasoning-parser kimi_k2 \
+    --tool-call-parser kimi_k2 \
+    --watchdog-timeout 1200 \
+    --host 0.0.0.0 --port 30000 \
+    > /tmp/server.log 2>&1
+'</code></pre>
+            </div>
+          </div>
+
+          <div class="bg-blue-500/5 border border-blue-500/15 rounded-lg p-3 mb-3">
+            <p class="text-xs text-blue-400"><strong>Key flags:</strong>
+              <code class="text-blue-300">HIP_VISIBLE_DEVICES=0,1,2,3</code> pins the validated 4-GPU slice;
+              <code class="text-blue-300">SGLANG_ROCM_FUSED_DECODE_MLA=0</code> is still required on ROCm;
+              <code class="text-blue-300">SGLANG_USE_AITER=1</code> enables the aiter prefill kernels;
+              <code class="text-blue-300">SGLANG_DEEPSEEK_LOAD_MAX_WORKERS=4</code> avoids oversubscribing the large MoE weight loader;
+              <code class="text-blue-300">--decode-attention-backend triton</code> + <code class="text-blue-300">--prefill-attention-backend aiter</code> is the best combo on this node;
+              CUDA graph stays <strong>enabled</strong> by default.</p>
+          </div>
+
+          <div class="bg-orange-500/5 border border-orange-500/15 rounded-lg p-3">
+            <p class="text-xs text-orange-400"><strong>Upstream status:</strong>
+              the minimal source changes behind this image are proposed in
+              <a href="https://github.com/sgl-project/sglang/pull/23381" class="text-orange-300 hover:underline">SGLang PR #23381</a>.
+              Until that lands, the Docker Hub image above is the easiest way to reproduce the validated MI355X setup.</p>
+          </div>
+        </div>
+
+        <div class="mb-6">
+          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded bg-green-500/15 text-green-400 text-[10px] font-display">BENCH</span>
+            Variant C Benchmark Results (TP=4, batch=1, CUDA graph on)
+          </h4>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="text-gray-500 border-b border-white/5">
+                  <th class="text-left py-2 pr-4 font-medium">Input</th>
+                  <th class="text-left py-2 pr-4 font-medium">Output</th>
+                  <th class="text-left py-2 pr-4 font-medium">TTFT</th>
+                  <th class="text-left py-2 pr-4 font-medium">Decode</th>
+                  <th class="text-left py-2 font-medium">Total Latency</th>
+                </tr>
+              </thead>
+              <tbody class="font-display text-gray-300">
+                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.639 s</td><td class="pr-4 text-green-400">39.95 tok/s</td><td>25.63 s</td></tr>
+                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">2,048</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.442 s</td><td class="pr-4 text-green-400">40.04 tok/s</td><td>25.57 s</td></tr>
+                <tr class="bench-row"><td class="py-2 pr-4">8,192</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.695 s</td><td class="pr-4 text-green-400">38.10 tok/s</td><td>26.88 s</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-[10px] text-gray-600 mt-2">Image: jhinpan/sglang-k26-mi355x:v0.5.10rc0-rocm720-20260420 &bull; 4&times; MI355X &bull; triton decode + aiter prefill &bull; tuned MoE config for E=384/N=256 &bull; April 2026</p>
+        </div>
+
+        <div class="bg-red-500/5 border border-red-500/15 rounded-lg p-3 mb-6">
+          <p class="text-xs text-red-400"><strong>DP-attention warning (BS=1):</strong>
+            enabling <code class="text-red-300">--enable-dp-attention --dp-size 4</code> was strictly worse in the low-concurrency serving case.
+            Decode throughput dropped from <code class="text-red-300">39.95</code> to <code class="text-red-300">18.11 tok/s</code> at 1k input, from <code class="text-red-300">40.04</code> to <code class="text-red-300">18.63 tok/s</code> at 2k input, and from <code class="text-red-300">38.10</code> to <code class="text-red-300">15.24 tok/s</code> at 8k input.
+            Keep DP attention <strong>off</strong> for BS=1; only revisit it when running many concurrent requests.</p>
+        </div>
+
+        <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
+          <h4 class="text-sm font-semibold text-white mb-4">Verification</h4>
+          <div class="code-block-wrapper">
+            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <pre class="language-bash"><code># Monitor startup logs
+docker exec kimi-k26-server tail -f /tmp/server.log
+
+# Health check
+curl http://localhost:30000/health
+
+# Chat completion (note reasoning_content field from --reasoning-parser kimi_k2)
+curl -s http://localhost:30000/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -d '{
+      "model": "Kimi-K2.6",
+      "messages": [{"role": "user", "content": "Hello!"}],
+      "max_tokens": 100
+    }' | python3 -m json.tool</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ==================== GLM-5 ==================== -->
     <div id="model-glm5" class="model-section">
       <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
@@ -1214,6 +1415,10 @@ done</code></pre>
           </li>
           <li class="flex items-start gap-2">
             <span class="text-[#ED1C24] shrink-0">&bull;</span>
+            <a href="https://github.com/sgl-project/sglang/pull/23381" class="text-gray-400 hover:text-white transition">[AMD] Add MI355X Kimi-K2.6 tuning artifacts (#23381)</a>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-[#ED1C24] shrink-0">&bull;</span>
             <a href="https://github.com/sgl-project/sglang/pull/18911" class="text-gray-400 hover:text-white transition">[AMD] GLM-5 Day 0 nightly test (#18911)</a>
           </li>
           <li class="flex items-start gap-2">
@@ -1272,6 +1477,10 @@ done</code></pre>
           </li>
           <li class="flex items-start gap-2">
             <span class="text-[#ED1C24] shrink-0">&bull;</span>
+            <a href="https://huggingface.co/moonshotai/Kimi-K2.6" class="text-gray-400 hover:text-white transition">Kimi-K2.6 on HuggingFace</a>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-[#ED1C24] shrink-0">&bull;</span>
             <a href="https://huggingface.co/zai-org/GLM-5-FP8" class="text-gray-400 hover:text-white transition">GLM-5-FP8 on HuggingFace</a>
           </li>
           <li class="flex items-start gap-2">
@@ -1288,7 +1497,7 @@ done</code></pre>
 <footer class="py-8 px-6 border-t border-white/5">
   <div class="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-4 text-xs text-gray-600">
     <div>SGLang AMD Cookbook &mdash; <a href="https://github.com/jhinpan" class="hover:text-gray-400">@jhinpan</a></div>
-    <div>Last updated: March 2026</div>
+    <div>Last updated: April 2026</div>
   </div>
 </footer>
 
