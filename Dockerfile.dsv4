@@ -1,0 +1,21 @@
+ARG BASE=rocm/sgl-dev:deepseek-v4-mi35x
+FROM ${BASE}
+
+COPY sglang-fork-dsv4/python /sgl-workspace/sglang-pr/python
+
+RUN rm -rf /sgl-workspace/sglang/python/sglang \
+ && cp -r /sgl-workspace/sglang-pr/python/sglang /sgl-workspace/sglang/python/sglang
+
+RUN sed -i '/^@dataclass$/d' /sgl-workspace/sglang/python/sglang/srt/configs/deepseek_v4.py
+
+RUN printf 'def bench_by_cuda_events(*a, **k):\n    raise NotImplementedError("bench_by_cuda_events stubbed on ROCm")\n\n\ndef bench_kineto(*a, **k):\n    raise NotImplementedError("bench_kineto stubbed on ROCm")\n' \
+    > /sgl-workspace/sglang/python/sglang/srt/flashmla_tests/kernelkit/bench.py
+
+ENV SGLANG_DSV4_BASE=rocm/sgl-dev:deepseek-v4-mi35x
+ENV SGLANG_DSV4_PR_HEAD=26fbc935300a3bfba34f3dfa8925310929f82680
+
+RUN test -f /sgl-workspace/sglang/python/sglang/srt/flashmla_tests/kernelkit/bench.py \
+ && grep -q 'bench_by_cuda_events' /sgl-workspace/sglang/python/sglang/srt/flashmla_tests/kernelkit/bench.py \
+ && ! grep -q '^@dataclass' /sgl-workspace/sglang/python/sglang/srt/configs/deepseek_v4.py \
+ && grep -q 'model_type: str = "deepseek_v4"' /sgl-workspace/sglang/python/sglang/srt/configs/deepseek_v4.py \
+ && echo 'overlay-ok'
