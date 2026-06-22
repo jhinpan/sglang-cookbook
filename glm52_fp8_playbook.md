@@ -122,7 +122,7 @@ python3 -m sglang.test.run_eval --port 30000 --eval-name aime25 \
 | Benchmark | GLM-5.2-FP8 @ MI300X | Cookbook ref | Notes |
 |-----------|----------------------|--------------|-------|
 | **GSM8K** | **97.2%** (n=1319) | 98.2% | parity ✓ — FP8 numerics healthy on gfx942 |
-| **AIME25** | _64k run pending_ (32k cap gave 56.3%, truncation artifact) | 87.7% | must use `--max-tokens 64000` to avoid truncation |
+| **AIME25** | **62.5%** (8 reps, max_tokens 64000) | 87.7% | 32k cap gave 56.3% (truncation); 64k → 62.5%. Residual gap: hardest items still hit 64k + harness/parser diffs |
 
 ## 6. Comparison vs NVIDIA (SGLang cookbook, GLM-5.2-FP8, ISL 8192 / OSL 1024)
 
