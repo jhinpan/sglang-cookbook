@@ -1549,6 +1549,40 @@ python3 -m sglang.launch_server \
         </div>
         <p class="text-[11px] text-gray-600 mt-3">AIME25 must use <code>--max-tokens 64000</code>: GLM-5.2 defaults to 'max' reasoning effort, so a 32k cap truncates hard problems (gave 56.3%, an artifact).</p>
       </div>
+
+      <!-- Long context (DSA) -->
+      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mt-6">
+        <h4 class="text-sm font-semibold text-white mb-1">Long context &mdash; DSA + 1M window</h4>
+        <p class="text-xs text-gray-500 mb-4">LongBench-v2 (reasoning accuracy) and serving perf vs input length. GLM-5.2's DeepSeek Sparse Attention keeps decode cheap at long context.</p>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs mb-6">
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">LongBench-v2 (subset, ~64k cap)</div>
+            <div class="text-green-400 font-display mt-1">59.5% <span class="text-gray-600">(human 53.7%, o1-preview 57.7%)</span></div>
+          </div>
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">Decode @ 256k ctx</div>
+            <div class="text-white font-display mt-1">24.2 ms TPOT <span class="text-gray-600">(8k: 18.9 ms)</span></div>
+          </div>
+          <div class="bg-surface-2 rounded-lg p-3">
+            <div class="text-gray-500">Prefill throughput</div>
+            <div class="text-white font-display mt-1">~8,000 tok/s</div>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs text-left">
+            <thead class="text-gray-500 border-b border-white/10">
+              <tr><th class="py-2 pr-4">Input length</th><th class="py-2 pr-4">TTFT median</th><th class="py-2 pr-4">TPOT (ms)</th><th class="py-2 pr-4">Output tok/s</th></tr>
+            </thead>
+            <tbody class="text-gray-300 font-display">
+              <tr class="border-b border-white/5"><td class="py-2 pr-4">8,192</td><td class="py-2 pr-4">1.4 s</td><td class="py-2 pr-4">18.9</td><td class="py-2 pr-4">47.7</td></tr>
+              <tr class="border-b border-white/5"><td class="py-2 pr-4">32,768</td><td class="py-2 pr-4">4.6 s</td><td class="py-2 pr-4">19.5</td><td class="py-2 pr-4">38.7</td></tr>
+              <tr class="border-b border-white/5"><td class="py-2 pr-4">131,072</td><td class="py-2 pr-4">23.6 s</td><td class="py-2 pr-4">21.5</td><td class="py-2 pr-4">19.0</td></tr>
+              <tr><td class="py-2 pr-4">262,144</td><td class="py-2 pr-4">43.8 s</td><td class="py-2 pr-4">24.2</td><td class="py-2 pr-4">11.5</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-[11px] text-gray-600 mt-3">DSA win: decode TPOT rises only 18.9 &rarr; 24.2 ms across a 32&times; context jump (8k &rarr; 256k); TTFT scales with prefill. Uses safe <code>--chunked-prefill-size 8192</code> (conc 1).</p>
+      </div>
     </div>
   </div>
 </section>

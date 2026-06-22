@@ -142,7 +142,36 @@ python3 -m sglang.test.run_eval --port 30000 --eval-name aime25 \
 
 **Takeaways:** ① FP8 works on MI300X out-of-the-box on stock SGLang ≥0.5.13.post1 + DSA tilelang. ② Accuracy is at parity (GSM8K 97.2% vs 98.2%). ③ Decode trails NV ~3–4×, primarily because AMD has **no MTP** here (NV numbers include EAGLE MTP) plus per-GPU HW differences. ④ Clear next levers: enable MTP/spec when supported on AMD, add DP-attention + DeepEP, and raise the prefill chunk size to cut TTFT.
 
-## 7. One-liners
+## 7. Long-context (GLM-5.2 = DSA + 1M context)
+
+GLM-5.2's DeepSeek Sparse Attention (DSA) is built for long context. Two probes on MI300X:
+
+**LongBench-v2** (long-context reasoning accuracy) — `run_eval --eval-name longbench_v2` (pass `--model <path>` so it can build the tokenizer):
+```bash
+python3 -m sglang.test.run_eval --port 30000 \
+  --model zai-org/GLM-5.2-FP8 --eval-name longbench_v2 \
+  --thinking-mode glm-45 --max-tokens 16384 --temperature 0 \
+  --num-examples 50 --max-context-length 256000 --num-threads 8
+```
+
+| Metric | GLM-5.2-FP8 @ MI300X | Reference |
+|--------|----------------------|-----------|
+| **LongBench-v2** | **59.5%** (subset, ~64k-tok cap) | human 53.7%, o1-preview 57.7%, best direct model 50.1% |
+
+→ **beats human + o1-preview** on the subset. Strong long-context reasoning.
+
+**Serving perf vs input length** (`bench_serving`, conc 1, output 512):
+
+| Input length | TTFT median | TPOT | Output tok/s |
+|-------------:|------------:|-----:|-------------:|
+| 8,192   | 1.4 s  | 18.9 ms | 47.7 |
+| 32,768  | 4.6 s  | 19.5 ms | 38.7 |
+| 131,072 | 23.6 s | 21.5 ms | 19.0 |
+| 262,144 | 43.8 s | 24.2 ms | 11.5 |
+
+→ **DSA win: decode TPOT rises only 18.9 → 24.2 ms across a 32× context jump (8k → 256k)** — per-token decode stays nearly flat at long context; TTFT scales with prefill (~8k tok/s). Note these use the safe `--chunked-prefill-size 8192`; a larger chunk would cut long-context TTFT.
+
+## 8. One-liners
 
 ```bash
 curl -s http://127.0.0.1:30000/get_server_info | python3 -m json.tool | head -40   # all flags/backends
