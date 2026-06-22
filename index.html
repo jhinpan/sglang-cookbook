@@ -1,1895 +1,219 @@
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SGLang AMD Cookbook</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            amd: { red: '#ED1C24', dark: '#1a1a2e', darker: '#0f0f1e' },
-            surface: { 1: '#1e1e30', 2: '#252540', 3: '#2d2d4a' }
-          },
-          fontFamily: {
-            display: ['"JetBrains Mono"', 'monospace'],
-            body: ['"Inter"', 'system-ui', 'sans-serif']
-          }
-        }
-      }
-    }
-  </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <style>
-    body { background: #0f0f1e; font-family: 'Inter', system-ui, sans-serif; }
-    pre[class*="language-"] { margin: 0; border-radius: 0 0 0.5rem 0.5rem; font-size: 0.82rem; }
-    code[class*="language-"] { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; }
-    .code-block-wrapper { position: relative; }
-    .copy-btn {
-      position: absolute; top: 0.5rem; right: 0.5rem; z-index: 10;
-      padding: 0.25rem 0.6rem; border-radius: 0.375rem;
-      background: rgba(255,255,255,0.08); color: #aaa; border: 1px solid rgba(255,255,255,0.1);
-      font-size: 0.7rem; cursor: pointer; transition: all 0.15s;
-      font-family: 'Inter', sans-serif;
-    }
-    .copy-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
-    .copy-btn.copied { background: #22c55e33; color: #22c55e; border-color: #22c55e55; }
-    .tab-btn { transition: all 0.15s; }
-    .tab-btn.active { background: #ED1C24; color: white; }
-    .tab-btn:not(.active) { background: rgba(255,255,255,0.05); color: #999; }
-    .tab-btn:not(.active):hover { background: rgba(255,255,255,0.1); color: #ccc; }
-    .model-section { display: none; }
-    .model-section.active { display: block; }
-    .tp-toggle { cursor: pointer; user-select: none; }
-    .tp-toggle.active { border-color: #ED1C24; background: #ED1C2415; }
-    .bench-row:nth-child(even) { background: rgba(255,255,255,0.02); }
-    .glow { box-shadow: 0 0 40px rgba(237, 28, 36, 0.08); }
-    nav a { transition: color 0.15s; }
-    nav a:hover { color: #ED1C24; }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #0f0f1e; }
-    ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SGLang × AMD Instinct — Serving Datasheet</title>
+  <meta name="description" content="Verified launch commands and measured-vs-roofline performance for frontier MoE models (Qwen, DeepSeek, GLM, Moonshot) on AMD Instinct MI300X (gfx942) and MI355X (gfx950) with SGLang." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="text-gray-300 min-h-screen">
+<body>
+<a class="skip" href="#models">Skip to recipes</a>
 
-<!-- Navigation -->
-<nav class="fixed top-0 w-full z-50 bg-[#0f0f1eee] backdrop-blur border-b border-white/5">
-  <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-    <div class="flex items-center gap-3">
-      <div class="w-2 h-2 rounded-full bg-[#ED1C24]"></div>
-      <span class="font-display font-semibold text-white text-sm tracking-wide">SGLang AMD Cookbook</span>
+<!-- ───────────────────────────── top bar ───────────────────────────── -->
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <span class="name">SGLang&nbsp;×&nbsp;AMD&nbsp;Instinct</span>
+      <span class="sub">serving datasheet</span>
     </div>
-    <div class="hidden md:flex items-center gap-6 text-xs text-gray-500">
-      <a href="#prerequisites">Prerequisites</a>
-      <a href="#models">Models</a>
-      <a href="#benchmarking">Benchmarking</a>
+    <nav class="topnav" aria-label="Sections">
+      <a href="#models">Recipes</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="#deploy">Deploy</a>
+      <a href="#method">Method</a>
       <a href="#references">References</a>
-    </div>
-  </div>
-</nav>
-
-<!-- Hero -->
-<header class="pt-28 pb-16 px-6">
-  <div class="max-w-6xl mx-auto">
-    <div class="inline-block px-3 py-1 rounded-full bg-[#ED1C2418] border border-[#ED1C2430] text-[#ED1C24] text-xs font-medium mb-6">
-      MI355X &middot; ROCm 7.0&ndash;7.2 &middot; SGLang v0.5.8&ndash;v0.5.10rc
-    </div>
-    <h1 class="text-4xl md:text-5xl font-bold text-white mb-4 leading-tight">
-      SGLang AMD<br>Cookbook
-    </h1>
-    <p class="text-gray-500 max-w-xl text-lg leading-relaxed">
-      Copy-paste ready commands for deploying and benchmarking
-      <span class="text-gray-300">Qwen3.5</span>,
-      <span class="text-gray-300">Kimi-K2.5</span>,
-      <span class="text-gray-300">Kimi-K2.6</span>,
-      <span class="text-gray-300">DeepSeek-V4-Flash</span>, and
-      <span class="text-gray-300">GLM-5</span>
-      on AMD Instinct MI355X GPUs.
-    </p>
-    <div class="mt-8 flex flex-wrap gap-3">
-      <div class="px-3 py-1.5 rounded-lg bg-surface-1 border border-white/5 text-xs">
-        <span class="text-gray-500">Hardware:</span> <span class="text-white">8&times; MI355X (288GB HBM3E each)</span>
-      </div>
-      <div class="px-3 py-1.5 rounded-lg bg-surface-1 border border-white/5 text-xs">
-        <span class="text-gray-500">Memory BW:</span> <span class="text-white">8 TB/s per GPU</span>
-      </div>
-      <div class="px-3 py-1.5 rounded-lg bg-surface-1 border border-white/5 text-xs">
-        <span class="text-gray-500">Updated:</span> <span class="text-white">April 2026</span>
-      </div>
-    </div>
+      <a href="https://github.com/jhinpan/sglang-amd-cookbook">GitHub ↗</a>
+    </nav>
   </div>
 </header>
 
-<!-- Prerequisites -->
-<section id="prerequisites" class="py-12 px-6">
-  <div class="max-w-6xl mx-auto">
-    <h2 class="text-2xl font-bold text-white mb-8">Prerequisites</h2>
-
-    <div class="grid md:grid-cols-2 gap-6">
-      <!-- System Prep -->
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 glow">
-        <h3 class="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-          <span class="w-1.5 h-1.5 rounded-full bg-[#ED1C24]"></span>
-          System Preparation
-        </h3>
-        <p class="text-xs text-gray-500 mb-4">Disable NUMA balancing for optimal GPU performance.</p>
-        <div class="code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code>sudo sh -c 'echo 0 > /proc/sys/kernel/numa_balancing'
-# Verify
-cat /proc/sys/kernel/numa_balancing  # Should output 0</code></pre>
-        </div>
-      </div>
-
-      <!-- Model Paths -->
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 glow">
-        <h3 class="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-          <span class="w-1.5 h-1.5 rounded-full bg-[#ED1C24]"></span>
-          Model Weight Paths
-        </h3>
-        <p class="text-xs text-gray-500 mb-4">Host path <code class="text-gray-400">/mnt/dcgpuval/huggingface</code> &rarr; bind-mounted to <code class="text-gray-400">/sgl-workspace/models</code> inside containers.</p>
-        <div class="space-y-2 text-xs font-display">
-          <div class="flex items-start gap-2 p-2 rounded bg-surface-2">
-            <span class="text-green-500 shrink-0">&#10003;</span>
-            <span class="text-gray-500 shrink-0">Qwen3.5:</span>
-            <span class="text-green-400 break-all">models--Qwen--Qwen3.5-397B-A17B/ <span class="text-gray-600">(752 GB)</span></span>
-          </div>
-          <div class="flex items-start gap-2 p-2 rounded bg-surface-2">
-            <span class="text-green-500 shrink-0">&#10003;</span>
-            <span class="text-gray-500 shrink-0">Kimi-K2.5:</span>
-            <span class="text-green-400 break-all">models--moonshotai--Kimi-K2.5/ <span class="text-gray-600">(555 GB)</span></span>
-          </div>
-          <div class="flex items-start gap-2 p-2 rounded bg-surface-2">
-            <span class="text-green-500 shrink-0">&#10003;</span>
-            <span class="text-gray-500 shrink-0">Kimi-K2.6:</span>
-            <span class="text-green-400 break-all">models--moonshotai--Kimi-K2.6/ <span class="text-gray-600">(555 GB)</span></span>
-          </div>
-          <div class="flex items-start gap-2 p-2 rounded bg-surface-2">
-            <span class="text-green-500 shrink-0">&#10003;</span>
-            <span class="text-gray-500 shrink-0">DeepSeek-V4-Flash:</span>
-            <span class="text-green-400 break-all">models--sgl-project--DeepSeek-V4-Flash-FP8/ <span class="text-gray-600">(274 GB)</span></span>
-          </div>
-          <div class="flex items-start gap-2 p-2 rounded bg-surface-2">
-            <span class="text-green-500 shrink-0">&#10003;</span>
-            <span class="text-gray-500 shrink-0">GLM-5:</span>
-            <span class="text-green-400 break-all">models--zai-org--GLM-5-FP8/ <span class="text-gray-600">(705 GB)</span></span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Docker Images -->
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 glow md:col-span-2">
-        <h3 class="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-          <span class="w-1.5 h-1.5 rounded-full bg-[#ED1C24]"></span>
-          Docker Images
-        </h3>
-        <p class="text-xs text-gray-500 mb-4">
-          Each model family has its own verified base image.
-          Qwen3.5 / Kimi-K2.5 / GLM-5 share the <code class="text-gray-400">rocm/sgl-dev:v0.5.9</code> line (+ aiter stub) &mdash;
-          the ROCm 7.2 build (<code class="text-gray-400">20260317</code>) is preferred for the optimized Kimi-K2.5 config,
-          the ROCm 7.0 build (<code class="text-gray-400">20260310</code>) is used for Qwen3.5 / GLM-5.
-          Kimi-K2.6 uses a bespoke image with MI355X MoE configs baked in.
-          DeepSeek-V4-Flash uses the official AMD image pushed with PR <a href="https://github.com/sgl-project/sglang/pull/23608" class="text-[#ED1C24] hover:underline">#23608</a>.
-        </p>
-        <div class="code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; Qwen3.5 / Kimi-K2.5 / GLM-5 base images</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code># ROCm 7.2 image (recommended for Kimi-K2.5 optimized config)
-docker pull rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260317
-
-# ROCm 7.0 image (for Qwen3.5 / GLM-5)
-docker pull rocm/sgl-dev:v0.5.9-rocm700-mi35x-20260310</code></pre>
-        </div>
-        <div class="mt-4 code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; Kimi-K2.6 image (MI355X MoE configs baked in)</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code># K2.6 image: includes aiter 3125d3b01 MLA TP=8 fix + 13-bucket MoE configs
-docker pull jhinpan/sglang-k26-mi355x:v0.5.10rc0-rocm720-20260420</code></pre>
-        </div>
-        <div class="mt-4 code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; DeepSeek-V4-Flash base image (from PR #23608)</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code># Official AMD image for DeepSeek-V4 (SGLang v0.5.8 + PR #23608 source overlay)
-docker pull rocm/sgl-dev:deepseek-v4-mi35x</code></pre>
-        </div>
-        <div class="mt-4 code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; Qwen3.5 / Kimi-K2.5 fixed image (aiter stub + quark patch)</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code># Clone the cookbook repo (contains Dockerfile + helper scripts)
-git clone https://github.com/jhinpan/sglang-cookbook.git &amp;&amp; cd sglang-cookbook
-
-# Build fixed image: disables broken aiter, patches quark imports
-docker build -t sglang-test:v0.5.9-rocm700-mi35x-20260310 \
-    --build-arg BASE=rocm/sgl-dev:v0.5.9-rocm700-mi35x-20260310 \
-    -f Dockerfile.bisect .</code></pre>
-        </div>
-        <div class="mt-4 code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; DeepSeek-V4-Flash overlay image (adds 2 AMD patches)</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code># Overlay PR #23608 head 26fbc93 + drop @dataclass + stub kernelkit/bench.py
-git clone https://github.com/jhinpan/sglang-cookbook.git &amp;&amp; cd sglang-cookbook
-git clone --branch amd/deepseek_v4 https://github.com/AgainstEntropy/sglang.git sglang-fork-dsv4
-git -C sglang-fork-dsv4 checkout 26fbc935300a3bfba34f3dfa8925310929f82680
-bash build_dsv4_image.sh    # produces sglang-dsv4-mi355x:flash-r1</code></pre>
-        </div>
-        <div class="mt-4 bg-orange-500/5 border border-orange-500/15 rounded-lg p-4">
-          <div class="text-xs font-semibold text-orange-400 mb-2">Required: Override SGLANG_ROCM_FUSED_DECODE_MLA</div>
-          <p class="text-xs text-gray-500">The Qwen3.5 / Kimi-K2.5 / K2.6 base images set <code class="text-gray-400">SGLANG_ROCM_FUSED_DECODE_MLA=1</code>, which crashes the triton attention backend with a <code class="text-gray-400">ForwardMetadata</code> unpacking error.
-            Override to <code class="text-gray-400">0</code> via <code class="text-gray-400">-e SGLANG_ROCM_FUSED_DECODE_MLA=0</code> at <code class="text-gray-400">docker run</code> time (shown in model configs below).
-            DeepSeek-V4-Flash uses a different attention path (<code class="text-gray-400">--attention-backend compressed</code>) and doesn&rsquo;t need this override.</p>
-        </div>
-      </div>
+<!-- ───────────────────────────── masthead ───────────────────────────── -->
+<div class="masthead">
+  <div class="grid-bg" aria-hidden="true"></div>
+  <div class="wrap">
+    <div class="partline">
+      <span><b>SGLANG</b> 0.5.8 – 0.5.13</span>
+      <span><b>ROCm</b> 7.0 – 7.2</span>
+      <span><b>TARGETS</b> gfx942 · gfx950</span>
+      <span class="rev"><b>REV</b> 2026.06</span>
     </div>
+    <h1>Serving frontier MoE on <span class="accent">AMD&nbsp;Instinct</span>.</h1>
+    <p class="thesis">
+      Verified <b>launch commands</b> and <b>measured-vs-roofline</b> performance for the latest
+      Qwen, DeepSeek, GLM, and Moonshot models on MI300X&nbsp;(gfx942) and MI355X&nbsp;(gfx950) with SGLang.
+      Every number is traced to a source. The gap to the physical limit is the point — that's the work.
+    </p>
+    <div class="hwstrip" id="hwstrip" aria-label="Hardware targets"><!-- app.js --></div>
   </div>
-</section>
+</div>
 
-<!-- Model Deployment Section -->
-<section id="models" class="py-12 px-6">
-  <div class="max-w-6xl mx-auto">
-    <h2 class="text-2xl font-bold text-white mb-2">Model Deployment</h2>
-    <p class="text-sm text-gray-500 mb-8">Select a model below to see its launch configuration for both TP=4 and TP=8.</p>
-
-    <!-- Model Tabs -->
-    <div class="flex gap-2 mb-8 flex-wrap">
-      <button class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium" onclick="switchModel('qwen35')" id="tab-qwen35">
-        Qwen3.5-397B-A17B
-      </button>
-      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium" onclick="switchModel('kimi')" id="tab-kimi">
-        Kimi-K2.5
-      </button>
-      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium" onclick="switchModel('kimi26')" id="tab-kimi26">
-        Kimi-K2.6
-      </button>
-      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium" onclick="switchModel('dsv4')" id="tab-dsv4">
-        DeepSeek-V4-Flash
-      </button>
-      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium" onclick="switchModel('glm5')" id="tab-glm5">
-        GLM-5-FP8
-      </button>
-      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium" onclick="switchModel('glm52')" id="tab-glm52">
-        GLM-5.2-FP8
-      </button>
+<main>
+<!-- ───────────────────────────── recipes ───────────────────────────── -->
+<section id="models" aria-labelledby="models-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">01 · recipes</span>
+      <h2 id="models-h">Model serving recipes</h2>
     </div>
-
-    <!-- ==================== QWEN 3.5 ==================== -->
-    <div id="model-qwen35" class="model-section active">
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
-        <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
-          <div>
-            <h3 class="text-lg font-bold text-white">Qwen3.5-397B-A17B</h3>
-            <p class="text-xs text-gray-500 mt-1">Mixture-of-Experts &mdash; 397B total params, 17B active per token</p>
-          </div>
-          <div class="flex gap-2 flex-wrap">
-            <span class="px-2 py-0.5 rounded text-[10px] bg-purple-500/15 text-purple-400 border border-purple-500/20">MoE</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-blue-500/15 text-blue-400 border border-blue-500/20">BF16</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 border border-green-500/20">752 GB</span>
-          </div>
-        </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-6">
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">HF Path</div>
-            <div class="text-white font-display mt-1">Qwen/Qwen3.5-397B-A17B</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Decode Throughput</div>
-            <div class="text-white font-display mt-1">53&ndash;59 tok/s (TP8, BS1)</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Attention Backend</div>
-            <div class="text-white font-display mt-1">triton</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Status</div>
-            <div class="text-green-400 font-display mt-1">Verified &check;</div>
-          </div>
-        </div>
-
-        <!-- TP=8 Launch (Verified) -->
-        <div class="mb-6">
-          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-[#ED1C24]/15 text-[#ED1C24] text-[10px] font-display">TP=8</span>
-            Launch Server (Verified)
-          </h4>
-          <p class="text-xs text-gray-500 mb-3">Tested end-to-end on 8&times; MI355X. Hybrid DeltaNet architecture: 45 recurrent + 15 GQA layers. <code class="text-gray-400">--max-mamba-cache-size 128</code> is critical (+45% perf).</p>
-          <div class="code-block-wrapper">
-            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; docker run</div>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre class="language-bash"><code>docker run -d \
-    --name qwen35-serve \
-    --ipc=host --network=host --privileged \
-    --shm-size 32G \
-    --ulimit core=0:0 \
-    --cap-add=CAP_SYS_ADMIN --cap-add=SYS_PTRACE \
-    --device=/dev/kfd --device=/dev/dri \
-    --group-add video \
-    --security-opt seccomp=unconfined \
-    --security-opt apparmor=unconfined \
-    -e HF_HUB_OFFLINE=1 \
-    -e SGLANG_ROCM_FUSED_DECODE_MLA=0 \
-    -v /mnt/dcgpuval/huggingface:/sgl-workspace/models \
-    sglang-test:v0.5.9-rocm700-mi35x-20260310 \
-    python3 -m sglang.launch_server \
-        --model-path /sgl-workspace/models/hub/models--Qwen--Qwen3.5-397B-A17B/snapshots/98d1a504ba52e88924b3a3a008447cf2fdbd518c \
-        --served-model-name Qwen3.5-397B-A17B \
-        --tp 8 \
-        --trust-remote-code \
-        --attention-backend triton \
-        --mem-fraction-static 0.80 \
-        --max-mamba-cache-size 128 \
-        --reasoning-parser qwen3 \
-        --tool-call-parser qwen3_coder \
-        --watchdog-timeout 1200 \
-        --host 0.0.0.0 \
-        --port 30000</code></pre>
-          </div>
-          <div class="mt-3 bg-blue-500/5 border border-blue-500/15 rounded-lg p-3">
-            <p class="text-xs text-blue-400"><strong>Key flags:</strong>
-              <code class="text-blue-300">--max-mamba-cache-size 128</code> critical for DeltaNet&rsquo;s 45 recurrent layers (+45% perf vs default 64);
-              <code class="text-blue-300">--tool-call-parser qwen3_coder</code> for robust tool calling (10/10 multi-turn);
-              <code class="text-blue-300">--reasoning-parser qwen3</code> separates &lt;think&gt; blocks;
-              CUDA graph <strong>enabled</strong> (default);
-              <code class="text-blue-300">SGLANG_ROCM_FUSED_DECODE_MLA=0</code> required for triton backend;
-              <code class="text-blue-300">--ulimit core=0:0</code> prevents GPU core dumps from filling disk on crash (~200 GB each).</p>
-          </div>
-        </div>
-
-        <!-- Benchmark Results -->
-        <div class="mb-6">
-          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-green-500/15 text-green-400 text-[10px] font-display">BENCH</span>
-            bench_one_batch_server Results (TP=8, batch=1)
-          </h4>
-          <div class="overflow-x-auto">
-            <table class="w-full text-xs">
-              <thead>
-                <tr class="text-gray-500 border-b border-white/5">
-                  <th class="text-left py-2 pr-4 font-medium">Input</th>
-                  <th class="text-left py-2 pr-4 font-medium">Output</th>
-                  <th class="text-left py-2 pr-4 font-medium">TTFT</th>
-                  <th class="text-left py-2 pr-4 font-medium">Decode</th>
-                  <th class="text-left py-2 font-medium">Total Latency</th>
-                </tr>
-              </thead>
-              <tbody class="font-display text-gray-300">
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">0.11 s</td><td class="pr-4 text-green-400">58.90 tok/s</td><td>8.69 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.11 s</td><td class="pr-4 text-green-400">59.17 tok/s</td><td>17.31 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">0.31 s</td><td class="pr-4 text-green-400">55.71 tok/s</td><td>9.19 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.25 s</td><td class="pr-4 text-green-400">56.68 tok/s</td><td>18.07 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">16,384</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">0.51 s</td><td class="pr-4 text-green-400">52.32 tok/s</td><td>9.79 s</td></tr>
-                <tr class="bench-row"><td class="py-2 pr-4">16,384</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.45 s</td><td class="pr-4 text-green-400">53.79 tok/s</td><td>19.04 s</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p class="text-[10px] text-gray-600 mt-2">Image: sglang-test:v0.5.9-rocm700-mi35x-20260310 &bull; 8&times; MI355X &bull; triton backend &bull; CUDA graph on &bull; mamba-cache=128 &bull; March 2026</p>
-        </div>
-
-        <!-- Known Issues -->
-        <div class="bg-orange-500/5 border border-orange-500/15 rounded-lg p-4">
-          <div class="text-xs font-semibold text-orange-400 mb-2">Known Issue: DeltaNet Mamba Memory Leak</div>
-          <p class="text-xs text-gray-500">Qwen3.5&rsquo;s 45 DeltaNet recurrent layers can leak memory over extended runtime, causing NCCL process group failures after ~10&ndash;12 hours.
-            See <a href="https://github.com/sgl-project/sglang/issues/20010" class="text-orange-300 hover:underline">Issue #20010</a> /
-            <a href="https://github.com/sgl-project/sglang/pull/20182" class="text-orange-300 hover:underline">PR #20182</a>.
-            Workaround: periodic container restart (<code class="text-orange-300">docker restart qwen35-serve</code>).</p>
-        </div>
-      </div>
-
-      <!-- Verification -->
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
-        <h4 class="text-sm font-semibold text-white mb-4">Verification</h4>
-        <div class="code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code># Wait for "The server is fired up and ready to roll!"
-docker logs -f qwen35-serve
-
-# Health check
-curl http://localhost:30000/health
-
-# Inference test (use max_tokens >= 512 for reasoning models)
-curl -s http://localhost:30000/v1/chat/completions \
-    -H "Content-Type: application/json" \
-    -d '{
-      "model": "Qwen3.5-397B-A17B",
-      "messages": [{"role": "user", "content": "What is 2+2?"}],
-      "max_tokens": 512,
-      "temperature": 0.0
-    }' | python3 -m json.tool
-
-# Tool calling test
-curl -s http://localhost:30000/v1/chat/completions \
-    -H "Content-Type: application/json" \
-    -d '{
-      "model": "Qwen3.5-397B-A17B",
-      "messages": [{"role": "user", "content": "Read /etc/hostname"}],
-      "tools": [{"type":"function","function":{"name":"ReadFile","description":"Read a file.","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}}}],
-      "tool_choice": "auto",
-      "max_tokens": 1024
-    }' | python3 -m json.tool</code></pre>
-        </div>
-      </div>
-
-      <!-- LoRA SFT Fine-tuned Model -->
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mt-6">
-        <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-          <span class="px-2 py-0.5 rounded bg-yellow-500/15 text-yellow-400 text-[10px] font-display">LoRA SFT</span>
-          Serving the Fine-tuned Model (v4)
-        </h4>
-        <p class="text-xs text-gray-500 mb-4">
-          The <a href="https://huggingface.co/JinnP/Qwen3.5-397B-A17B-LoRA-SFT-v4" class="text-blue-400 hover:underline">LoRA SFT v4</a> adapter
-          fine-tunes Qwen3.5 on AMD GPU kernel engineering trajectories (270 examples, rank 32, 13 target module types).
-          SGLang&rsquo;s runtime LoRA does not support this adapter&rsquo;s DeltaNet recurrent modules
-          (<code class="text-gray-400">in_proj_a/b/z/qkv</code>, <code class="text-gray-400">out_proj</code>)
-          or MoE gate (<code class="text-gray-400">shared_expert_gate</code>).
-          The workaround is to <strong class="text-white">merge the adapter offline</strong> and serve the merged model as a standalone checkpoint.
-        </p>
-
-        <!-- Why not runtime LoRA -->
-        <div class="bg-red-500/5 border border-red-500/15 rounded-lg p-4 mb-4">
-          <div class="text-xs font-semibold text-red-400 mb-2">Why Runtime LoRA Won&rsquo;t Work</div>
-          <p class="text-xs text-gray-500">
-            SGLang LoRA supports: <code class="text-red-300">q/k/v/o_proj, gate/up/down_proj</code>.
-            This adapter also targets 6 unsupported modules across Qwen3.5&rsquo;s 45 DeltaNet layers and MoE gates.
-            Attempting <code class="text-red-300">--lora-paths</code> will fail at <code class="text-red-300">init_lora_shapes()</code>.
-            See <a href="https://github.com/sgl-project/sglang/issues/9897" class="text-red-300 hover:underline">sglang#9897</a>.
-          </p>
-        </div>
-
-        <!-- Merge workflow -->
-        <div class="mb-4">
-          <div class="text-xs font-semibold text-yellow-400 mb-2">Step 1: Merge LoRA into Base Model (offline, ~25 min)</div>
-          <p class="text-xs text-gray-500 mb-3">
-            Use <a href="https://github.com/hiyouga/LLaMA-Factory" class="text-blue-400 hover:underline">LLaMA-Factory</a> to merge.
-            Requires ~800 GB RAM. Output: 743 GB (122 &times; 5 GB shards).
-          </p>
-          <div class="code-block-wrapper mb-3">
-            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">yaml &mdash; merge config (examples/merge_lora/qwen35_397b_lora_sft_amdpilot.yaml)</div>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre class="language-yaml"><code>### model
-model_name_or_path: /sgl-workspace/models/hub/models--Qwen--Qwen3.5-397B-A17B/snapshots/7cad2bae11cb49ca79f7d6a0954de2e2756f4e27
-adapter_name_or_path: JinnP/Qwen3.5-397B-A17B-LoRA-SFT-v4
-template: qwen3_5_nothink
-trust_remote_code: true
-
-### export
-export_dir: /sgl-workspace/models/Qwen3.5-397B-A17B-LoRA-SFT-v4-merged
-export_size: 5
-export_device: cpu
-export_legacy_format: false</code></pre>
-          </div>
-          <div class="code-block-wrapper">
-            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; run merge</div>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre class="language-bash"><code>llamafactory-cli export examples/merge_lora/qwen35_397b_lora_sft_amdpilot.yaml</code></pre>
-          </div>
-        </div>
-
-        <!-- Serve merged model -->
-        <div class="mb-4">
-          <div class="text-xs font-semibold text-yellow-400 mb-2">Step 2: Serve Merged Model with SGLang</div>
-          <p class="text-xs text-gray-500 mb-3">
-            Identical to the base Qwen3.5 launch command, just swap <code class="text-gray-400">--model-path</code> and <code class="text-gray-400">--served-model-name</code>.
-            All flags (<code class="text-gray-400">--max-mamba-cache-size</code>, <code class="text-gray-400">--reasoning-parser</code>, etc.) carry over.
-          </p>
-          <div class="code-block-wrapper">
-            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; docker run</div>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre class="language-bash"><code>docker run -d \
-    --name qwen35-sft-serve \
-    --ipc=host --network=host --privileged \
-    --shm-size 32G \
-    --ulimit core=0:0 \
-    --cap-add=CAP_SYS_ADMIN --cap-add=SYS_PTRACE \
-    --device=/dev/kfd --device=/dev/dri \
-    --group-add video \
-    --security-opt seccomp=unconfined \
-    --security-opt apparmor=unconfined \
-    -e HF_HUB_OFFLINE=1 \
-    -e SGLANG_ROCM_FUSED_DECODE_MLA=0 \
-    -v /mnt/dcgpuval/huggingface:/sgl-workspace/models \
-    sglang-test:v0.5.9-rocm700-mi35x-20260310 \
-    python3 -m sglang.launch_server \
-        --model-path /sgl-workspace/models/hub/Qwen3.5-397B-A17B-LoRA-SFT-v4-merged \
-        --served-model-name Qwen3.5-397B-A17B-SFT-v4 \
-        --tp 8 \
-        --trust-remote-code \
-        --attention-backend triton \
-        --mem-fraction-static 0.80 \
-        --max-mamba-cache-size 128 \
-        --reasoning-parser qwen3 \
-        --tool-call-parser qwen3_coder \
-        --watchdog-timeout 1200 \
-        --host 0.0.0.0 \
-        --port 30000</code></pre>
-          </div>
-        </div>
-
-        <!-- Verification for SFT model -->
-        <div>
-          <div class="text-xs font-semibold text-yellow-400 mb-2">Step 3: Verify</div>
-          <div class="code-block-wrapper">
-            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre class="language-bash"><code># Wait for server ready
-docker logs -f qwen35-sft-serve
-
-# Health check
-curl http://localhost:30000/health
-
-# Test inference with the fine-tuned model
-curl -s http://localhost:30000/v1/chat/completions \
-    -H "Content-Type: application/json" \
-    -d '{
-      "model": "Qwen3.5-397B-A17B-SFT-v4",
-      "messages": [{"role": "user", "content": "What is 2+2?"}],
-      "max_tokens": 512,
-      "temperature": 0.0
-    }' | python3 -m json.tool</code></pre>
-          </div>
-        </div>
-
-        <!-- Adapter details -->
-        <div class="bg-surface-2 rounded-lg p-4 mt-4">
-          <div class="text-xs font-semibold text-gray-400 mb-2">Adapter Details</div>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-            <div>
-              <div class="text-gray-500">HF Adapter</div>
-              <div class="text-white font-display mt-1">JinnP/Qwen3.5-397B-A17B-LoRA-SFT-v4</div>
-            </div>
-            <div>
-              <div class="text-gray-500">Rank / Alpha</div>
-              <div class="text-white font-display mt-1">32 / 64</div>
-            </div>
-            <div>
-              <div class="text-gray-500">Trainable Params</div>
-              <div class="text-white font-display mt-1">128.5M (0.032%)</div>
-            </div>
-            <div>
-              <div class="text-gray-500">Merged Size</div>
-              <div class="text-white font-display mt-1">743 GB (122 shards)</div>
-            </div>
-          </div>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mt-3">
-            <div>
-              <div class="text-gray-500">Dataset</div>
-              <div class="text-white font-display mt-1">270 examples (3-view)</div>
-            </div>
-            <div>
-              <div class="text-gray-500">Best Eval Loss</div>
-              <div class="text-white font-display mt-1">0.0547 (epoch 8)</div>
-            </div>
-            <div>
-              <div class="text-gray-500">Target Modules</div>
-              <div class="text-white font-display mt-1">13 types (all)</div>
-            </div>
-            <div>
-              <div class="text-gray-500">NFS Path</div>
-              <div class="text-white font-display mt-1">hub/Qwen3.5-397B-A17B-LoRA-SFT-v4-merged/</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ==================== KIMI K2.5 ==================== -->
-    <div id="model-kimi" class="model-section">
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
-        <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
-          <div>
-            <h3 class="text-lg font-bold text-white">Kimi-K2.5</h3>
-            <p class="text-xs text-gray-500 mt-1">Mixture-of-Experts &mdash; 1T total params, 32B active per token, W4A16 quantized</p>
-          </div>
-          <div class="flex gap-2 flex-wrap">
-            <span class="px-2 py-0.5 rounded text-[10px] bg-purple-500/15 text-purple-400 border border-purple-500/20">MoE</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-orange-500/15 text-orange-400 border border-orange-500/20">W4A16</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 border border-green-500/20">555 GB</span>
-          </div>
-        </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-6">
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">HF Path</div>
-            <div class="text-white font-display mt-1">moonshotai/Kimi-K2.5</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Decode Throughput</div>
-            <div class="text-white font-display mt-1"><span class="text-green-400">42.6 tok/s</span> optimized (TP8, BS1)</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Attention Backend</div>
-            <div class="text-white font-display mt-1">triton decode + aiter prefill</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Status</div>
-            <div class="text-green-400 font-display mt-1">Verified &check;</div>
-          </div>
-        </div>
-
-        <!-- Optimized TP=8 Setup (Recommended) -->
-        <div class="mb-6">
-          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-green-500/15 text-green-400 text-[10px] font-display">BEST</span>
-            <span class="px-2 py-0.5 rounded bg-[#ED1C24]/15 text-[#ED1C24] text-[10px] font-display">TP=8</span>
-            Optimized Serving (Verified, 38.6% faster)
-          </h4>
-          <p class="text-xs text-gray-500 mb-3">
-            Achieves <strong class="text-white">23.5ms decode median</strong> (42.6 tok/s) vs 38.3ms baseline &mdash; a <strong class="text-green-400">38.6% improvement</strong>.
-            Uses the stock ROCm 7.2 image with optimized sglang and aiter branches checked out inside the container.
-            Three key optimizations: GEMM A16W16 small-M configs (BLOCK_SIZE_M=16&ndash;64 for M=1 decode), MoE Triton kernel configs (E=384, N=128 for MI355X),
-            and hybrid attention (triton decode + aiter prefill).
-          </p>
-
-          <!-- Step 0: Pull Image -->
-          <div class="mb-4">
-            <div class="text-xs font-semibold text-gray-400 mb-2">Step 0: Pull Base Image</div>
-            <div class="code-block-wrapper">
-              <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-              <pre class="language-bash"><code>docker pull rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260317</code></pre>
-            </div>
-          </div>
-
-          <!-- Step 1: Start Container -->
-          <div class="mb-4">
-            <div class="text-xs font-semibold text-gray-400 mb-2">Step 1: Start Container</div>
-            <div class="code-block-wrapper">
-              <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; docker run</div>
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-              <pre class="language-bash"><code>docker run -d --name kimi-k25-server \
-    --device /dev/kfd --device /dev/dri \
-    --shm-size 64g --network host \
-    --cap-add SYS_PTRACE --group-add video \
-    -e GPU_COREDUMP_ENABLE=0 \
-    -e SGLANG_ROCM_FUSED_DECODE_MLA=0 \
-    -e SGLANG_USE_AITER=1 \
-    -v /path/to/huggingface:/root/.cache/huggingface \
-    rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260317 \
-    sleep infinity</code></pre>
-            </div>
-            <p class="text-[10px] text-gray-600 mt-1">Replace <code class="text-gray-500">/path/to/huggingface</code> with the parent directory containing the <code class="text-gray-500">hub/</code> folder with <code class="text-gray-500">models--moonshotai--Kimi-K2.5</code>.</p>
-          </div>
-
-          <!-- Step 2: Apply Optimized Branches -->
-          <div class="mb-4">
-            <div class="text-xs font-semibold text-gray-400 mb-2">Step 2a: Apply Optimized sglang Branch (MoE Triton configs)</div>
-            <div class="code-block-wrapper">
-              <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-              <pre class="language-bash"><code>docker exec kimi-k25-server bash -c '
-cd /sgl-workspace/sglang
-git stash &amp;&amp; git clean -fd
-git remote add fork https://github.com/Arist12/sglang.git
-git fetch fork kimi-k25-optimize-v2
-git checkout fork/kimi-k25-optimize-v2
-cd python &amp;&amp; pip install -e .
-'</code></pre>
-            </div>
-          </div>
-
-          <div class="mb-4">
-            <div class="text-xs font-semibold text-gray-400 mb-2">Step 2b: Apply Optimized aiter Branch (GEMM A16W16 small-M configs)</div>
-            <div class="code-block-wrapper">
-              <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-              <pre class="language-bash"><code>docker exec kimi-k25-server bash -c '
-cd /sgl-workspace/aiter
-git stash &amp;&amp; git clean -fd
-git remote add fork https://github.com/Arist12/aiter.git
-git fetch fork kimi-k25-optimize-v2
-git checkout fork/kimi-k25-optimize-v2
-pip install .
-'</code></pre>
-            </div>
-            <div class="mt-2 bg-red-500/5 border border-red-500/15 rounded-lg p-3">
-              <p class="text-xs text-red-400"><strong>Must use <code class="text-red-300">pip install .</code> (non-editable) for aiter.</strong>
-                Using <code class="text-red-300">pip install -e .</code> creates a broken namespace package that fails to resolve compiled C extensions.
-                Verify with: <code class="text-red-300">python3 -c "from aiter import dynamic_per_tensor_quant; print('OK')"</code></p>
-            </div>
-          </div>
-
-          <!-- Step 3: Launch Server -->
-          <div class="mb-4">
-            <div class="text-xs font-semibold text-gray-400 mb-2">Step 3: Launch Server</div>
-            <div class="code-block-wrapper">
-              <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-              <pre class="language-bash"><code>docker exec -d kimi-k25-server bash -c '
-export SGLANG_ROCM_FUSED_DECODE_MLA=0
-export SGLANG_USE_AITER=1
-/opt/venv/bin/python3 -m sglang.launch_server \
-    --model-path moonshotai/Kimi-K2.5 \
-    --tp 8 \
-    --trust-remote-code \
-    --decode-attention-backend triton \
-    --prefill-attention-backend aiter \
-    --mem-fraction-static 0.85 \
-    --reasoning-parser kimi_k2 \
-    --tool-call-parser kimi_k2 \
-    --host 0.0.0.0 --port 30000 \
-    > /tmp/server.log 2>&1
-'</code></pre>
-            </div>
-          </div>
-
-          <div class="bg-blue-500/5 border border-blue-500/15 rounded-lg p-3 mb-3">
-            <p class="text-xs text-blue-400"><strong>Key flags:</strong>
-              <code class="text-blue-300">--decode-attention-backend triton</code> + <code class="text-blue-300">--prefill-attention-backend aiter</code> hybrid attention (triton for decode, aiter ASM kernels for prefill);
-              <code class="text-blue-300">SGLANG_ROCM_FUSED_DECODE_MLA=0</code> required (image default is 1);
-              <code class="text-blue-300">SGLANG_USE_AITER=1</code> enables aiter prefill path;
-              <code class="text-blue-300">--mem-fraction-static 0.85</code> for max KV cache;
-              <code class="text-blue-300">--reasoning-parser kimi_k2</code> separates reasoning from content;
-              <code class="text-blue-300">--tool-call-parser kimi_k2</code> enables structured tool calling;
-              CUDA graph <strong>enabled</strong> (default).</p>
-          </div>
-
-          <div class="bg-orange-500/5 border border-orange-500/15 rounded-lg p-3">
-            <p class="text-xs text-orange-400"><strong>What the optimized branches change:</strong>
-              <strong>sglang</strong> (<a href="https://github.com/Arist12/sglang/tree/kimi-k25-optimize-v2" class="text-orange-300 hover:underline">Arist12/sglang:kimi-k25-optimize-v2</a>):
-              MoE Triton kernel configs for <code class="text-orange-300">E=384,N=128</code> on MI355X with BLOCK_SIZE_M=16 for batch=1 decode.
-              <strong>aiter</strong> (<a href="https://github.com/Arist12/aiter/tree/kimi-k25-optimize-v2" class="text-orange-300 hover:underline">Arist12/aiter:kimi-k25-optimize-v2</a>):
-              GEMM A16W16 small-M configs (M_LEQ_4/8/16/32/64 with BLOCK_SIZE_M=16&ndash;64, default was 256).</p>
-          </div>
-        </div>
-
-        <!-- Optimized Benchmark Results -->
-        <div class="mb-6">
-          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-green-500/15 text-green-400 text-[10px] font-display">BENCH</span>
-            Optimized Benchmark Results (TP=8, batch=1)
-          </h4>
-
-          <div class="overflow-x-auto mb-4">
-            <p class="text-xs text-gray-400 mb-2 font-semibold">bench_one_batch (raw decode latency, input=8192, output=2048)</p>
-            <table class="w-full text-xs">
-              <thead>
-                <tr class="text-gray-500 border-b border-white/5">
-                  <th class="text-left py-2 pr-4 font-medium">Configuration</th>
-                  <th class="text-left py-2 pr-4 font-medium">Decode Median</th>
-                  <th class="text-left py-2 pr-4 font-medium">Prefill</th>
-                  <th class="text-left py-2 font-medium">Improvement</th>
-                </tr>
-              </thead>
-              <tbody class="font-display text-gray-300">
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">Baseline (triton attn, default configs)</td><td class="pr-4">38.3 ms</td><td class="pr-4">&mdash;</td><td>&mdash;</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">+ AITER prefill attention</td><td class="pr-4">34.4 ms</td><td class="pr-4">&mdash;</td><td>10.2%</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">+ GEMM A16W16 small-M tuning</td><td class="pr-4">24.3 ms</td><td class="pr-4">&mdash;</td><td>36.6%</td></tr>
-                <tr class="bench-row font-semibold text-white"><td class="py-2 pr-4">+ MoE Triton config tuning (final)</td><td class="pr-4 text-green-400">23.5 ms (42.6 tok/s)</td><td class="pr-4 text-green-400">637 ms (12,847 tok/s)</td><td class="text-green-400">38.6%</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="overflow-x-auto mb-4">
-            <p class="text-xs text-gray-400 mb-2 font-semibold">bench_one_batch_server (server throughput, output=2048)</p>
-            <table class="w-full text-xs">
-              <thead>
-                <tr class="text-gray-500 border-b border-white/5">
-                  <th class="text-left py-2 pr-4 font-medium">Input</th>
-                  <th class="text-left py-2 pr-4 font-medium">Output</th>
-                  <th class="text-left py-2 pr-4 font-medium">TTFT</th>
-                  <th class="text-left py-2 pr-4 font-medium">Decode</th>
-                  <th class="text-left py-2 font-medium">Total Latency</th>
-                </tr>
-              </thead>
-              <tbody class="font-display text-gray-300">
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">2,048</td><td class="pr-4 text-yellow-400">0.27 s</td><td class="pr-4 text-green-400">45.19 tok/s</td><td>45.32 s</td></tr>
-                <tr class="bench-row"><td class="py-2 pr-4">2,048</td><td class="pr-4">2,048</td><td class="pr-4 text-yellow-400">0.33 s</td><td class="pr-4 text-green-400">44.67 tok/s</td><td>45.84 s</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <p class="text-[10px] text-gray-600 mt-2">Image: rocm/sgl-dev:v0.5.9-rocm720-mi35x-20260317 + optimized branches &bull; 8&times; MI355X &bull; triton decode + aiter prefill &bull; CUDA graph on &bull; March 2026</p>
-        </div>
-
-        <!-- Previous Grid Search Results (collapsed) -->
-        <details class="mb-6">
-          <summary class="text-sm font-semibold text-gray-400 cursor-pointer hover:text-gray-300 mb-3">Previous Results: Grid Search (stock images, no optimized branches)</summary>
-          <div class="mt-3 bg-surface-2 rounded-lg p-4">
-            <p class="text-xs text-gray-500 mb-3">18 configs tested across 2 ROCm images with stock sglang/aiter. These results are superseded by the optimized config above.</p>
-
-            <div class="overflow-x-auto mb-4">
-              <p class="text-xs text-gray-400 mb-2 font-semibold">rocm700 (v0.5.9-rocm700-mi35x-20260319)</p>
-              <table class="w-full text-xs">
-                <thead>
-                  <tr class="text-gray-500 border-b border-white/5">
-                    <th class="text-left py-2 pr-4 font-medium">Input</th>
-                    <th class="text-left py-2 pr-4 font-medium">Output</th>
-                    <th class="text-left py-2 pr-4 font-medium">TTFT</th>
-                    <th class="text-left py-2 pr-4 font-medium">Decode</th>
-                    <th class="text-left py-2 font-medium">Total Latency</th>
-                  </tr>
-                </thead>
-                <tbody class="font-display text-gray-300">
-                  <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">3.66 s</td><td class="pr-4">33.62 tok/s</td><td>18.86 s</td></tr>
-                  <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">1.54 s</td><td class="pr-4">35.54 tok/s</td><td>16.57 s</td></tr>
-                  <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">5.58 s</td><td class="pr-4">23.36 tok/s</td><td>27.41 s</td></tr>
-                  <tr class="bench-row"><td class="py-2 pr-4">8,192</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">5.57 s</td><td class="pr-4">23.31 tok/s</td><td>43.93 s</td></tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div class="overflow-x-auto">
-              <p class="text-xs text-gray-400 mb-2 font-semibold">rocm720 (v0.5.9-rocm720-mi35x-20260320)</p>
-              <table class="w-full text-xs">
-                <thead>
-                  <tr class="text-gray-500 border-b border-white/5">
-                    <th class="text-left py-2 pr-4 font-medium">Input</th>
-                    <th class="text-left py-2 pr-4 font-medium">Output</th>
-                    <th class="text-left py-2 pr-4 font-medium">TTFT</th>
-                    <th class="text-left py-2 pr-4 font-medium">Decode</th>
-                    <th class="text-left py-2 font-medium">Total Latency</th>
-                  </tr>
-                </thead>
-                <tbody class="font-display text-gray-300">
-                  <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">1.40 s</td><td class="pr-4">26.47 tok/s</td><td>20.70 s</td></tr>
-                  <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.84 s</td><td class="pr-4">26.34 tok/s</td><td>39.67 s</td></tr>
-                  <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">512</td><td class="pr-4 text-yellow-400">4.17 s</td><td class="pr-4">19.48 tok/s</td><td>30.40 s</td></tr>
-                  <tr class="bench-row"><td class="py-2 pr-4">8,192</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">4.20 s</td><td class="pr-4">19.37 tok/s</td><td>21.95 s</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </details>
-      </div>
-
-      <!-- Eagle3 Speculative Decoding -->
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
-        <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
-          <div>
-            <h4 class="text-sm font-semibold text-white flex items-center gap-2">
-              <span class="px-2 py-0.5 rounded bg-[#ED1C24]/15 text-[#ED1C24] text-[10px] font-display">ADDON</span>
-              Eagle3 Speculative Decoding
-            </h4>
-            <p class="text-xs text-gray-500 mt-1">1.8&times; decode speedup with <a href="https://huggingface.co/lightseekorg/kimi-k2.5-eagle3" class="text-[#ED1C24] hover:underline">lightseekorg/kimi-k2.5-eagle3</a> (3B, 1 layer, BF16). Supports greedy and non-greedy (temp&gt;0) on ROCm.</p>
-          </div>
-          <div class="flex gap-2 flex-wrap">
-            <span class="px-2 py-0.5 rounded text-[10px] bg-[#ED1C24]/15 text-[#ED1C24] border border-[#ED1C24]/20">Eagle3</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 border border-green-500/20">1.8&times;</span>
-          </div>
-        </div>
-
-        <div class="code-block-wrapper mb-4">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; Eagle3 launch (add --speculative flags to the optimized server command)</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code># After applying the optimized branches (Steps 2a/2b above), launch with Eagle3:
-docker exec -d kimi-k25-server bash -c '
-export SGLANG_ROCM_FUSED_DECODE_MLA=0
-export SGLANG_USE_AITER=1
-/opt/venv/bin/python3 -m sglang.launch_server \
-    --model-path moonshotai/Kimi-K2.5 \
-    --tp 8 --trust-remote-code \
-    --decode-attention-backend triton \
-    --prefill-attention-backend aiter \
-    --mem-fraction-static 0.75 \
-    --reasoning-parser kimi_k2 \
-    --tool-call-parser kimi_k2 \
-    --host 0.0.0.0 --port 30000 \
-    --speculative-algorithm EAGLE3 \
-    --speculative-draft-model-path lightseekorg/kimi-k2.5-eagle3 \
-    > /tmp/server.log 2>&1
-'</code></pre>
-        </div>
-
-        <div class="bg-orange-500/5 border border-orange-500/15 rounded-lg p-3 mb-4">
-          <p class="text-xs text-orange-400"><strong>Must use <code class="text-orange-300">--speculative-algorithm EAGLE3</code></strong> (not <code class="text-orange-300">EAGLE</code>).
-            Using <code class="text-orange-300">EAGLE</code> silently degrades accept_length to 1.0 because it skips the 3-layer aux hidden state capture that Eagle3 requires.
-            See <a href="https://github.com/sgl-project/sglang/pull/21272" class="text-orange-300 hover:underline">PR #21272</a> for auto-detection fix.
-            Note <code class="text-orange-300">--mem-fraction-static 0.75</code> (reduced from 0.85) to leave VRAM for the draft model.</p>
-        </div>
-
-        <div class="mb-4">
-          <p class="text-xs text-gray-400 mb-2 font-semibold">Eagle3 Decode Throughput (TP=8, BS=1, math/coding tasks)</p>
-          <div class="overflow-x-auto">
-            <table class="w-full text-xs">
-              <thead>
-                <tr class="text-gray-500 border-b border-white/5">
-                  <th class="text-left py-2 pr-4 font-medium">Task</th>
-                  <th class="text-left py-2 pr-4 font-medium">Greedy (temp=0)</th>
-                  <th class="text-left py-2 pr-4 font-medium">Non-greedy (temp=0.6)</th>
-                  <th class="text-left py-2 font-medium">vs Baseline</th>
-                </tr>
-              </thead>
-              <tbody class="font-display text-gray-300">
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">math_algebra</td><td class="pr-4 text-green-400">69.8 tok/s</td><td class="pr-4 text-green-400">66.2 tok/s</td><td>1.9&times;</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">math_series</td><td class="pr-4 text-green-400">69.3 tok/s</td><td class="pr-4 text-green-400">71.7 tok/s</td><td>2.0&times;</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">coding_fibonacci</td><td class="pr-4 text-green-400">66.6 tok/s</td><td class="pr-4 text-green-400">57.7 tok/s</td><td>1.6&times;</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">coding_sort</td><td class="pr-4 text-green-400">66.3 tok/s</td><td class="pr-4 text-green-400">56.0 tok/s</td><td>1.6&times;</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">coding_json</td><td class="pr-4 text-green-400">58.6 tok/s</td><td class="pr-4 text-green-400">55.8 tok/s</td><td>1.6&times;</td></tr>
-                <tr class="bench-row font-semibold text-white"><td class="py-2 pr-4">AVERAGE</td><td class="pr-4 text-green-400">66.1 tok/s</td><td class="pr-4 text-green-400">61.5 tok/s</td><td>1.8&times; / 1.7&times;</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p class="text-[10px] text-gray-600 mt-2">Accept length: greedy 2.3&ndash;3.6, non-greedy 3.0&ndash;3.4 &bull; Baseline: 35.8 tok/s (rocm700 stock) &bull; <code class="text-gray-500">--mem-fraction-static 0.75</code> required for Eagle3</p>
-        </div>
-
-        <div class="bg-blue-500/5 border border-blue-500/15 rounded-lg p-3 mb-4">
-          <p class="text-xs text-blue-400"><strong>Non-greedy on ROCm:</strong> Requires PyTorch fallback kernels for 3 missing sgl_kernel C++ ops.
-            Apply via <code class="text-blue-300">patch_eagle_rocm.py</code> from this repo, or use <a href="https://github.com/sgl-project/sglang/pull/21275" class="text-blue-300 hover:underline">PR #21275</a> once merged.
-            Without the patch, temp&gt;0 falls back to greedy silently.</p>
-        </div>
-
-        <div class="bg-yellow-500/5 border border-yellow-500/15 rounded-lg p-3">
-          <div class="text-xs font-semibold text-yellow-400 mb-2">Known Limitation: Long Context</div>
-          <p class="text-xs text-gray-500">Eagle3 accept_length degrades at 8K+ input tokens (falls to 1.6&ndash;2.0), making it slower than baseline.
-            This is a draft model quality issue, not a serving bug. See <a href="https://github.com/sgl-project/sglang/issues/6783" class="text-yellow-300 hover:underline">#6783</a>. Use Eagle3 for short-context, high-throughput workloads (coding, math, chat).</p>
-        </div>
-      </div>
-
-      <!-- Verification -->
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
-        <h4 class="text-sm font-semibold text-white mb-4">Verification</h4>
-        <div class="code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code># Monitor startup logs (wait for "The server is fired up and ready to roll!")
-docker exec kimi-k25-server tail -f /tmp/server.log
-
-# Health check
-curl http://localhost:30000/health
-
-# Chat completion (note reasoning_content field from --reasoning-parser kimi_k2)
-curl -s http://localhost:30000/v1/chat/completions \
-    -H "Content-Type: application/json" \
-    -d '{
-      "model": "moonshotai/Kimi-K2.5",
-      "messages": [{"role": "user", "content": "Hello!"}],
-      "max_tokens": 100
-    }' | python3 -m json.tool
-
-# Tool calling test (note tool_calls array from --tool-call-parser kimi_k2)
-curl -s http://localhost:30000/v1/chat/completions \
-    -H "Content-Type: application/json" \
-    -d '{
-      "model": "moonshotai/Kimi-K2.5",
-      "messages": [{"role": "user", "content": "What is the weather in San Francisco?"}],
-      "tools": [{"type":"function","function":{"name":"get_weather","description":"Get weather for a location","parameters":{"type":"object","properties":{"location":{"type":"string"}},"required":["location"]}}}],
-      "max_tokens": 200
-    }' | python3 -m json.tool</code></pre>
-        </div>
-      </div>
-    </div>
-
-    <!-- ==================== KIMI K2.6 ==================== -->
-    <div id="model-kimi26" class="model-section">
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
-        <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
-          <div>
-            <h3 class="text-lg font-bold text-white">Kimi-K2.6</h3>
-            <p class="text-xs text-gray-500 mt-1">Mixture-of-Experts &mdash; 1T total params, 32B active per token, W4A16 quantized, 384 routed experts</p>
-          </div>
-          <div class="flex gap-2 flex-wrap">
-            <span class="px-2 py-0.5 rounded text-[10px] bg-purple-500/15 text-purple-400 border border-purple-500/20">MoE</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-orange-500/15 text-orange-400 border border-orange-500/20">W4A16</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 border border-green-500/20">555 GB</span>
-          </div>
-        </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-6">
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">HF Path</div>
-            <div class="text-white font-display mt-1">moonshotai/Kimi-K2.6</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Decode Throughput</div>
-            <div class="text-white font-display mt-1">34&ndash;45 tok/s (TP8, BS1, 1k&ndash;32k ctx)</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Attention Backend</div>
-            <div class="text-white font-display mt-1">triton (decode) &bull; aiter (prefill)</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Status</div>
-            <div class="text-green-400 font-display mt-1">Verified &check;</div>
-          </div>
-        </div>
-
-        <!-- TP=8 Launch (Verified) -->
-        <div class="mb-6">
-          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-[#ED1C24]/15 text-[#ED1C24] text-[10px] font-display">TP=8</span>
-            Launch Server (Verified)
-          </h4>
-          <p class="text-xs text-gray-500 mb-3">Tested end-to-end on 8&times; MI355X with the prebuilt K2.6 image, which ships aiter <code class="text-gray-400">3125d3b01</code> MLA TP=8 fix and 13-bucket <code class="text-gray-400">E=384,N=128,&hellip;MI355X,int4_w4a16</code> MoE configs. Decode runs on triton; prefill on aiter for best TTFT.</p>
-          <div class="code-block-wrapper">
-            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; docker run (K2.6 TP=8, pure MoE-TP)</div>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre class="language-bash"><code>docker run -d \
-    --name kimi-k2.6-serve \
-    --ipc=host --network=host \
-    --shm-size 32G \
-    --cap-add=SYS_PTRACE \
-    --device=/dev/kfd --device=/dev/dri \
-    --group-add video \
-    --security-opt seccomp=unconfined \
-    --security-opt apparmor=unconfined \
-    -e HF_HUB_OFFLINE=1 \
-    -e SGLANG_ROCM_FUSED_DECODE_MLA=0 \
-    -e SGLANG_USE_AITER=1 \
-    -e SGLANG_DEEPSEEK_LOAD_MAX_WORKERS=4 \
-    -v $HOME/hf-cache/hub:/hf-cache \
-    jhinpan/sglang-k26-mi355x:v0.5.10rc0-rocm720-20260420 \
-    python3 -m sglang.launch_server \
-        --model-path /hf-cache/models--moonshotai--Kimi-K2.6/snapshots/&lt;rev&gt; \
-        --served-model-name kimi-k2.6 \
-        --tensor-parallel-size 8 \
-        --ep-size 1 \
-        --trust-remote-code \
-        --reasoning-parser kimi_k2 \
-        --tool-call-parser kimi_k2 \
-        --decode-attention-backend triton \
-        --prefill-attention-backend aiter \
-        --host 0.0.0.0 \
-        --port 30000</code></pre>
-          </div>
-          <div class="mt-3 bg-blue-500/5 border border-blue-500/15 rounded-lg p-3">
-            <p class="text-xs text-blue-400"><strong>Key flags:</strong>
-              <code class="text-blue-300">--ep-size 1</code> keeps MoE TP-sharded across 8 ranks (hits the pre-tuned <code class="text-blue-300">E=384,N=128</code> config);
-              <code class="text-blue-300">--decode-attention-backend triton --prefill-attention-backend aiter</code> is the MI355X sweet spot (triton MLA for decode, aiter for heavy prefill);
-              <code class="text-blue-300">SGLANG_ROCM_FUSED_DECODE_MLA=0</code> avoids the triton MLA unpack crash;
-              <code class="text-blue-300">SGLANG_DEEPSEEK_LOAD_MAX_WORKERS=4</code> keeps weight-load RAM pressure bounded.</p>
-          </div>
-        </div>
-
-        <!-- EP Alternatives -->
-        <div class="mb-6">
-          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-gray-500/15 text-gray-400 text-[10px] font-display">ALT</span>
-            Expert-Parallel variants (EP=8 / TP2EP4 / TP4EP2)
-          </h4>
-          <p class="text-xs text-gray-500 mb-3">Replace the two EP flags in the TP=8 launch above to switch topology. All three require <code class="text-gray-400">mori</code> all-to-all backend plus the mori env group below.</p>
-          <div class="code-block-wrapper">
-            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; EP variant flags</div>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre class="language-bash"><code># EP=8 (48 unique experts per GPU, attention still TP=8)
---ep-size 8 --moe-a2a-backend mori --disable-cuda-graph --skip-server-warmup \
-  --watchdog-timeout 1800 --dist-timeout 3600
-
-# TP2EP4 (2 expert replicas, each replica 4-way EP)
---ep-size 4 --moe-dp-size 2 --moe-a2a-backend mori --disable-cuda-graph \
-  --skip-server-warmup --watchdog-timeout 1800 --dist-timeout 3600
-
-# TP4EP2 (4 expert replicas, each replica 2-way EP)
---ep-size 2 --moe-dp-size 4 --moe-a2a-backend mori --disable-cuda-graph \
-  --skip-server-warmup --watchdog-timeout 1800 --dist-timeout 3600
-
-# Additional env required for any mori variant
--e SGLANG_MORI_NUM_MAX_DISPATCH_TOKENS_PER_RANK=16384 \
--e MORI_SHMEM_MODE=vmm \
--e MORI_SHMEM_HEAP_SIZE=34359738368 \
--e TORCH_NCCL_BLOCKING_WAIT=0 \
--e NCCL_ASYNC_ERROR_HANDLING=0</code></pre>
-          </div>
-          <p class="text-[10px] text-gray-600 mt-2">EP variants lack tuned MoE configs for <code>N=2048</code> (only the default TP=8 <code>N=128</code> config is shipped), so they fall back to generic kernels and tend to be slower at BS=1.</p>
-        </div>
-
-        <!-- Benchmark Results -->
-        <div class="mb-6">
-          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-green-500/15 text-green-400 text-[10px] font-display">BENCH</span>
-            bench_one_batch_server Results (TP=8, batch=1)
-          </h4>
-          <div class="overflow-x-auto">
-            <table class="w-full text-xs">
-              <thead>
-                <tr class="text-gray-500 border-b border-white/5">
-                  <th class="text-left py-2 pr-4 font-medium">Input</th>
-                  <th class="text-left py-2 pr-4 font-medium">Output</th>
-                  <th class="text-left py-2 pr-4 font-medium">TTFT</th>
-                  <th class="text-left py-2 pr-4 font-medium">Decode</th>
-                  <th class="text-left py-2 font-medium">Total Latency</th>
-                </tr>
-              </thead>
-              <tbody class="font-display text-gray-300">
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.30 s</td><td class="pr-4 text-green-400">45.23 tok/s</td><td>22.64 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">2,048</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.35 s</td><td class="pr-4 text-green-400">44.69 tok/s</td><td>22.91 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">4,096</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.43 s</td><td class="pr-4 text-green-400">43.62 tok/s</td><td>23.48 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">0.65 s</td><td class="pr-4 text-green-400">41.88 tok/s</td><td>24.45 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">16,384</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">1.10 s</td><td class="pr-4 text-green-400">38.93 tok/s</td><td>26.30 s</td></tr>
-                <tr class="bench-row"><td class="py-2 pr-4">32,768</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">2.23 s</td><td class="pr-4 text-green-400">34.00 tok/s</td><td>30.11 s</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p class="text-[10px] text-gray-600 mt-2">Image: jhinpan/sglang-k26-mi355x:v0.5.10rc0-rocm720-20260420 &bull; 8&times; MI355X &bull; triton decode + aiter prefill &bull; CUDA graph on &bull; ep-size 1 &bull; April 2026</p>
-        </div>
-      </div>
-
-      <!-- Verification -->
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
-        <h4 class="text-sm font-semibold text-white mb-4">Verification</h4>
-        <div class="code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code># Wait for "The server is fired up and ready to roll!"
-docker logs -f kimi-k2.6-serve
-
-# List the served model (returns id = kimi-k2.6)
-curl http://localhost:30000/v1/models | python3 -m json.tool
-
-# Health check
-curl -o /dev/null -s -w "HTTP %{http_code}\n" http://localhost:30000/health_generate
-
-# Quick inference
-curl -s http://localhost:30000/v1/chat/completions \
-    -H "Content-Type: application/json" \
-    -d '{
-      "model": "kimi-k2.6",
-      "messages": [{"role": "user", "content": "Hello, who are you?"}],
-      "max_tokens": 128
-    }' | python3 -m json.tool</code></pre>
-        </div>
-      </div>
-    </div>
-
-    <!-- ==================== DEEPSEEK V4 FLASH ==================== -->
-    <div id="model-dsv4" class="model-section">
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
-        <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
-          <div>
-            <h3 class="text-lg font-bold text-white">DeepSeek-V4-Flash-FP8</h3>
-            <p class="text-xs text-gray-500 mt-1">MoE + Compressed MLA &mdash; 256 routed experts, MQA (num_key_value_heads=1), 43 layers, 1M ctx, native FP8 e4m3</p>
-          </div>
-          <div class="flex gap-2 flex-wrap">
-            <span class="px-2 py-0.5 rounded text-[10px] bg-purple-500/15 text-purple-400 border border-purple-500/20">MoE</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-cyan-500/15 text-cyan-400 border border-cyan-500/20">Compressed MLA</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-teal-500/15 text-teal-400 border border-teal-500/20">FP8</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 border border-green-500/20">274 GB</span>
-          </div>
-        </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-6">
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">HF Path</div>
-            <div class="text-white font-display mt-1">sgl-project/DeepSeek-V4-Flash-FP8</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Decode Throughput</div>
-            <div class="text-white font-display mt-1">~4 tok/s (TP8, BS1) &mdash; correctness first</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Attention Backend</div>
-            <div class="text-white font-display mt-1">compressed (torch FlashMLA ref)</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Upstream PR</div>
-            <div class="text-white font-display mt-1"><a href="https://github.com/sgl-project/sglang/pull/23608" class="text-[#ED1C24] hover:underline">#23608</a></div>
-          </div>
-        </div>
-
-        <!-- Required AMD patches -->
-        <div class="mb-6 bg-yellow-500/5 border border-yellow-500/15 rounded-lg p-4">
-          <div class="text-xs font-semibold text-yellow-400 mb-2">Required: two AMD-side deltas on top of PR #23608 head 26fbc93</div>
-          <p class="text-xs text-gray-500 mb-3">
-            Both are single-line fixes already baked into <code class="text-yellow-300">Dockerfile.dsv4</code> in this cookbook.
-          </p>
-          <ol class="text-xs text-gray-400 list-decimal list-inside space-y-1">
-            <li>Drop <code class="text-yellow-300">@dataclass</code> decorator from <code>python/sglang/srt/configs/deepseek_v4.py</code> &mdash; fails at import with <code>TypeError: non-default argument 'quantization_config' follows default argument</code> because <code>PretrainedConfig</code>&rsquo;s metaclass strips field defaults.</li>
-            <li>Create a stub for <code class="text-yellow-300">python/sglang/srt/flashmla_tests/kernelkit/bench.py</code> with two <code>NotImplementedError</code> helpers (<code>bench_by_cuda_events</code>, <code>bench_kineto</code>). The PR&rsquo;s <code>kernelkit/__init__.py</code> unconditionally imports <code>bench</code> but no file exists in either the image or the PR branch.</li>
-          </ol>
-        </div>
-
-        <!-- TP=4 DP=4 Launch (PR recipe) -->
-        <div class="mb-6">
-          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-[#ED1C24]/15 text-[#ED1C24] text-[10px] font-display">TP=4 DP=4</span>
-            Launch Server (PR recipe &mdash; 4 GPUs, recommended)
-          </h4>
-          <p class="text-xs text-gray-500 mb-3">Verbatim from PR <a href="https://github.com/sgl-project/sglang/pull/23608" class="text-[#ED1C24] hover:underline">#23608</a>&rsquo;s description (only the port is node-local). <code class="text-gray-400">--enable-dp-attention</code> is mandatory because V4 uses MQA (1 KV head) &mdash; attention cannot be TP-sharded. 19 env vars disable every JIT fast-path that needs a CUDA toolchain.</p>
-          <div class="code-block-wrapper">
-            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; docker run (4 GPUs, TP=4 DP=4 DP-attention)</div>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre class="language-bash"><code>docker run -d --name dsv4-flash-r1 \
-    --device=/dev/kfd --device=/dev/dri --network=host --ipc=host \
-    --group-add video --cap-add SYS_PTRACE \
-    --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
-    --shm-size=32g \
-    -v $HOME/hf-cache/hub:/hf-cache \
-    -e CUDA_VISIBLE_DEVICES=0,1,2,3 \
-    -e SGLANG_OPT_USE_FUSED_COMPRESS=false \
-    -e SGLANG_OPT_USE_OLD_COMPRESSOR=true \
-    -e SGLANG_OPT_USE_TILELANG_SWA_PREPARE=false \
-    -e SGLANG_OPT_USE_JIT_KERNEL_FUSED_TOPK=false \
-    -e SGLANG_OPT_USE_FUSED_HASH_TOPK=false \
-    -e SGLANG_HACK_FLASHMLA_BACKEND=torch \
-    -e SGLANG_OPT_DEEPGEMM_HC_PRENORM=false \
-    -e SGLANG_OPT_USE_TILELANG_MHC_PRE=false \
-    -e SGLANG_OPT_USE_TILELANG_MHC_POST=false \
-    -e SGLANG_ENABLE_THINKING=1 \
-    -e SGLANG_USE_AITER=1 \
-    -e SGLANG_USE_ROCM700A=1 \
-    -e SGLANG_TOPK_TRANSFORM_512_TORCH=1 \
-    -e SGLANG_FP8_PAGED_MQA_LOGITS_TORCH=1 \
-    -e SGLANG_DSV4_FP4_EXPERTS=false \
-    -e SGLANG_OPT_DPSK_V4_RADIX=0 \
-    -e SGLANG_OPT_USE_OVERLAP_STORE_CACHE=false \
-    -e SGLANG_OPT_USE_FUSED_STORE_CACHE=false \
-    -e SGLANG_FORCE_TRITON_MOE_FP8=1 \
-    sglang-dsv4-mi355x:flash-r1 \
-    python3 -m sglang.launch_server \
-        --model-path /hf-cache/models--sgl-project--DeepSeek-V4-Flash-FP8/snapshots/&lt;rev&gt; \
-        --served-model-name dsv4-flash \
-        --trust-remote-code \
-        --tp 4 --dp 4 --enable-dp-attention \
-        --disable-radix-cache --attention-backend compressed \
-        --max-running-request 256 --page-size 256 --chunked-prefill-size 8192 \
-        --host 0.0.0.0 --port 31000 \
-        --disable-shared-experts-fusion --disable-cuda-graph \
-        --tool-call-parser deepseekv4 --reasoning-parser deepseek-v4</code></pre>
-          </div>
-        </div>
-
-        <!-- TP=8 DP=8 Launch (8 GPUs) -->
-        <div class="mb-6">
-          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-gray-500/15 text-gray-400 text-[10px] font-display">TP=8 DP=8</span>
-            Launch Server (8 GPUs &mdash; same decode speed at BS=1, more KV headroom)
-          </h4>
-          <p class="text-xs text-gray-500 mb-3">All 8 GPUs. Keeps <code class="text-gray-400">--enable-dp-attention</code> for the same MQA reason. Decode tok/s at BS=1 is identical to TP=4 because per-expert MoE work is already tiny and all-to-all overhead eats any TP gain. Use this topology to double the context / KV pool instead.</p>
-          <div class="code-block-wrapper">
-            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; diff from TP=4 launch above</div>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre class="language-bash"><code># Only these CLI args change
--e CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
-...
---tp 8 --dp 8 --enable-dp-attention</code></pre>
-          </div>
-        </div>
-
-        <!-- Benchmark Results -->
-        <div class="mb-6">
-          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-green-500/15 text-green-400 text-[10px] font-display">BENCH</span>
-            bench_one_batch_server Results (TP=8 DP=8, batch=1)
-          </h4>
-          <div class="overflow-x-auto">
-            <table class="w-full text-xs">
-              <thead>
-                <tr class="text-gray-500 border-b border-white/5">
-                  <th class="text-left py-2 pr-4 font-medium">Input</th>
-                  <th class="text-left py-2 pr-4 font-medium">Output</th>
-                  <th class="text-left py-2 pr-4 font-medium">TTFT</th>
-                  <th class="text-left py-2 pr-4 font-medium">Decode</th>
-                  <th class="text-left py-2 font-medium">Total Latency</th>
-                </tr>
-              </thead>
-              <tbody class="font-display text-gray-300">
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">2,048</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">5.47 s</td><td class="pr-4 text-green-400">3.99 tok/s</td><td>262.4 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">2,048</td><td class="pr-4">2,048</td><td class="pr-4 text-yellow-400">5.36 s</td><td class="pr-4 text-green-400">3.97 tok/s</td><td>521.2 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">4,096</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">9.53 s</td><td class="pr-4 text-green-400">4.02 tok/s</td><td>264.4 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">4,096</td><td class="pr-4">2,048</td><td class="pr-4 text-yellow-400">10.21 s</td><td class="pr-4 text-green-400">3.99 tok/s</td><td>523.5 s</td></tr>
-                <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">1,024</td><td class="pr-4 text-yellow-400">20.03 s</td><td class="pr-4 text-green-400">3.99 tok/s</td><td>276.9 s</td></tr>
-                <tr class="bench-row"><td class="py-2 pr-4">8,192</td><td class="pr-4">2,048</td><td class="pr-4 text-yellow-400">19.49 s</td><td class="pr-4 text-green-400">3.99 tok/s</td><td>533.3 s</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p class="text-[10px] text-gray-600 mt-2">Image: sglang-dsv4-mi355x:flash-r1 (base rocm/sgl-dev:deepseek-v4-mi35x + 2 AMD patches) &bull; 8&times; MI355X &bull; compressed attention &bull; torch FlashMLA ref &bull; CUDA graph off &bull; April 2026. <strong>Decode is flat at ~4 tok/s</strong> because V4-Flash is MQA (1 KV head) with DP-attention replication and every JIT fast-path is disabled &mdash; this is the &ldquo;correctness first&rdquo; config, not a tuned one.</p>
-        </div>
-
-        <!-- Known Caveats -->
-        <div class="bg-orange-500/5 border border-orange-500/15 rounded-lg p-4">
-          <div class="text-xs font-semibold text-orange-400 mb-2">Known caveats (April 2026)</div>
-          <ul class="text-xs text-gray-500 space-y-1 list-disc list-inside">
-            <li><code class="text-orange-300">--kv-cache-dtype auto</code> is silently overridden to <code>fp8_e4m3</code> for V4 (<code>server_args.py:1193</code>); the &ldquo;no scaling factors provided&rdquo; warning is cosmetic for short contexts.</li>
-            <li>The <code>deepseek-v4</code> reasoning parser does not currently split <code>&lt;think&gt;&hellip;&lt;/think&gt;</code> from the answer &mdash; both end up in <code>choices[0].message.content</code>, and <code>reasoning_content</code> is always empty.</li>
-            <li>Expect orders-of-magnitude speed-up once the AMD-side JIT kernels land in PR #23608 and these <code>SGLANG_OPT_USE_*=false</code> switches can be lifted.</li>
-          </ul>
-        </div>
-      </div>
-
-      <!-- Verification -->
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
-        <h4 class="text-sm font-semibold text-white mb-4">Verification</h4>
-        <div class="code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code># Wait for "The server is fired up and ready to roll!"
-docker logs -f dsv4-flash-r1
-
-# List served model
-curl http://localhost:31000/v1/models | python3 -m json.tool
-
-# Correctness smoke
-curl -s http://localhost:31000/v1/chat/completions \
-    -H 'Content-Type: application/json' \
-    -d '{"model":"dsv4-flash","messages":[{"role":"user","content":"What is 2+2?"}],"temperature":1.0,"top_p":1.0,"max_tokens":256}' \
-    | python3 -m json.tool
-# Expected content ends with: "...&lt;/think&gt;4"
-
-# Non-thinking / direct answer
-curl -s http://localhost:31000/v1/chat/completions \
-    -H 'Content-Type: application/json' \
-    -d '{"model":"dsv4-flash","messages":[{"role":"user","content":"Name the three colors of the French flag."}],"chat_template_kwargs":{"thinking":false},"max_tokens":64,"temperature":0.0}' \
-    | python3 -m json.tool</code></pre>
-        </div>
-      </div>
-    </div>
-
-    <!-- ==================== GLM-5 ==================== -->
-    <div id="model-glm5" class="model-section">
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
-        <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
-          <div>
-            <h3 class="text-lg font-bold text-white">GLM-5-FP8</h3>
-            <p class="text-xs text-gray-500 mt-1">MoE + Native Sparse Attention (NSA) &mdash; 744B total params, 40B active, DeepSeek-V2 architecture</p>
-          </div>
-          <div class="flex gap-2 flex-wrap">
-            <span class="px-2 py-0.5 rounded text-[10px] bg-purple-500/15 text-purple-400 border border-purple-500/20">MoE</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-cyan-500/15 text-cyan-400 border border-cyan-500/20">NSA</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-teal-500/15 text-teal-400 border border-teal-500/20">FP8</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 border border-green-500/20">705 GB</span>
-          </div>
-        </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-6">
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">HF Path</div>
-            <div class="text-white font-display mt-1">zai-org/GLM-5-FP8</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Model Type</div>
-            <div class="text-white font-display mt-1">glm_moe_dsa</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">NSA Backend</div>
-            <div class="text-white font-display mt-1">tilelang</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Day-0 PR</div>
-            <div class="text-white font-display mt-1"><a href="https://github.com/sgl-project/sglang/pull/18911" class="text-[#ED1C24] hover:underline">#18911</a></div>
-          </div>
-        </div>
-
-        <!-- Config Patch -->
-        <div class="bg-yellow-500/5 border border-yellow-500/15 rounded-lg p-4 mb-6">
-          <div class="text-xs font-semibold text-yellow-400 mb-2">Required: glm_moe_dsa Config Registration Patch</div>
-          <p class="text-xs text-gray-500 mb-3">GLM-5 uses a <code class="text-yellow-400/80">glm_moe_dsa</code> model type that HuggingFace Transformers doesn&rsquo;t recognize natively.
-            This is registered in SGLang&rsquo;s config loader (included in recent SGLang builds). Ensure your SGLang version includes the fix from PR
-            <a href="https://github.com/sgl-project/sglang/pull/18911" class="text-[#ED1C24] hover:underline">#18911</a>.</p>
-          <div class="code-block-wrapper">
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre class="language-bash"><code># Ensure latest transformers (for GLM-5 tokenizer support)
-pip install --upgrade transformers</code></pre>
-          </div>
-        </div>
-
-        <!-- TP=8 Launch -->
-        <div class="mb-6">
-          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-[#ED1C24]/15 text-[#ED1C24] text-[10px] font-display">TP=8</span>
-            Launch Server (Recommended)
-          </h4>
-          <div class="code-block-wrapper">
-            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre class="language-bash"><code>python3 -m sglang.launch_server \
-    --model-path zai-org/GLM-5-FP8 \
-    --served-model-name glm-5-fp8 \
-    --tp 8 \
-    --tool-call-parser glm47 \
-    --reasoning-parser glm45 \
-    --mem-fraction-static 0.80 \
-    --nsa-prefill-backend tilelang \
-    --nsa-decode-backend tilelang \
-    --chunked-prefill-size 131072 \
-    --watchdog-timeout 1200 \
-    --port 30000</code></pre>
-          </div>
-        </div>
-
-        <!-- TP=4 Launch -->
-        <div>
-          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-gray-500/15 text-gray-400 text-[10px] font-display">TP=4</span>
-            Launch Server (4 GPUs)
-          </h4>
-          <div class="bg-orange-500/5 border border-orange-500/15 rounded-lg p-3 mb-3">
-            <p class="text-xs text-orange-400">Tight fit: 705 GB model in 1,152 GB. Reduce <code>--mem-fraction-static</code> to leave room for KV cache. TP=8 strongly recommended for GLM-5.</p>
-          </div>
-          <div class="code-block-wrapper">
-            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre class="language-bash"><code>HIP_VISIBLE_DEVICES=0,1,2,3 python3 -m sglang.launch_server \
-    --model-path zai-org/GLM-5-FP8 \
-    --served-model-name glm-5-fp8 \
-    --tp 4 \
-    --tool-call-parser glm47 \
-    --reasoning-parser glm45 \
-    --mem-fraction-static 0.60 \
-    --nsa-prefill-backend tilelang \
-    --nsa-decode-backend tilelang \
-    --chunked-prefill-size 131072 \
-    --disable-cuda-graph \
-    --watchdog-timeout 1200 \
-    --port 30000</code></pre>
-          </div>
-        </div>
-      </div>
-
-      <!-- Verification -->
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
-        <h4 class="text-sm font-semibold text-white mb-4">Verification</h4>
-        <div class="code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code># Health check
-curl http://localhost:30000/health
-
-# List models
-curl http://localhost:30000/v1/models | python3 -m json.tool
-
-# Quick inference test
-curl -s http://localhost:30000/v1/chat/completions \
-    -H "Content-Type: application/json" \
-    -d '{
-      "model": "glm-5-fp8",
-      "messages": [{"role": "user", "content": "Hello, who are you?"}],
-      "max_tokens": 64
-    }' | python3 -m json.tool</code></pre>
-        </div>
-      </div>
-    </div>
-
-    <!-- ==================== GLM 5.2 ==================== -->
-    <div id="model-glm52" class="model-section">
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
-        <div class="flex flex-wrap items-start justify-between gap-4 mb-6">
-          <div>
-            <h3 class="text-lg font-bold text-white">GLM-5.2-FP8 &mdash; on MI300X</h3>
-            <p class="text-xs text-gray-500 mt-1">MoE + DeepSeek Sparse Attention (DSA) &mdash; <code>glm_moe_dsa</code> (DeepSeek-V3.2 / GLM-5.1 arch). Single-node TP=8 on 8&times; MI300X (gfx942).</p>
-          </div>
-          <div class="flex gap-2 flex-wrap">
-            <span class="px-2 py-0.5 rounded text-[10px] bg-purple-500/15 text-purple-400 border border-purple-500/20">MoE</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-cyan-500/15 text-cyan-400 border border-cyan-500/20">DSA</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-teal-500/15 text-teal-400 border border-teal-500/20">FP8</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-green-500/15 text-green-400 border border-green-500/20">704 GB</span>
-            <span class="px-2 py-0.5 rounded text-[10px] bg-red-500/15 text-red-400 border border-red-500/20">MI300X</span>
-          </div>
-        </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-6">
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">HF Path</div>
-            <div class="text-white font-display mt-1">zai-org/GLM-5.2-FP8</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Model Type</div>
-            <div class="text-white font-display mt-1">glm_moe_dsa</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">DSA Backend</div>
-            <div class="text-white font-display mt-1">tilelang</div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Cookbook PR</div>
-            <div class="text-white font-display mt-1"><a href="https://github.com/sgl-project/sglang/pull/28471" class="text-[#ED1C24] hover:underline">#28471</a></div>
-          </div>
-        </div>
-
-        <!-- Image -->
-        <div class="code-block-wrapper mb-6">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; image (AMD ROCm 7.2, MI300X / gfx942)</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code>docker pull rocm/sgl-dev:v0.5.13.post1-rocm720-mi30x-20260620</code></pre>
-        </div>
-
-        <!-- BF16 note -->
-        <div class="bg-orange-500/5 border border-orange-500/15 rounded-lg p-3 mb-6">
-          <p class="text-xs text-orange-400">BF16 (~1.4 TB) does <strong>not</strong> fit single-node on MI300X (8&times;192 GiB &rarr; ~175 GB/GPU of weights alone). Use FP8 on MI300X; BF16 only fits on MI325X/MI355X. No FP4 checkpoint exists.</p>
-        </div>
-
-        <!-- TP=8 Launch -->
-        <div class="mb-6">
-          <h4 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-[#ED1C24]/15 text-[#ED1C24] text-[10px] font-display">TP=8</span>
-            Launch Server (verified, MI300X)
-          </h4>
-          <div class="code-block-wrapper">
-            <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-            <pre class="language-bash"><code>export PYTORCH_HIP_ALLOC_CONF=expandable_segments:True
-python3 -m sglang.launch_server \
-    --model-path zai-org/GLM-5.2-FP8 \
-    --served-model-name glm-5.2 \
-    --trust-remote-code \
-    --tp 8 \
-    --dsa-prefill-backend tilelang \
-    --dsa-decode-backend tilelang \
-    --kv-cache-dtype bfloat16 \
-    --chunked-prefill-size 8192 \
-    --mem-fraction-static 0.85 \
-    --cuda-graph-max-bs 64 --max-running-requests 64 \
-    --watchdog-timeout 1200 \
-    --host 0.0.0.0 --port 30000</code></pre>
-          </div>
-        </div>
-
-        <!-- Gotchas -->
-        <div class="bg-yellow-500/5 border border-yellow-500/15 rounded-lg p-4 mb-2">
-          <div class="text-xs font-semibold text-yellow-400 mb-2">MI300X gotchas</div>
-          <ul class="text-xs text-gray-400 list-disc ml-4 space-y-1">
-            <li><strong>KV-cache dtype must be bfloat16</strong> with the DSA tilelang backend (FP8 KV is incompatible).</li>
-            <li><strong>Keep prefill chunked</strong> (<code>--chunked-prefill-size 8192</code>): an unchunked long prefill trips the tilelang DSA tile limit (<code>tensor a (16384) must match b (131072)</code>).</li>
-            <li><strong>No MTP / speculative decoding</strong> on AMD &mdash; omit all <code>--speculative-*</code> flags (NV recipes use EAGLE MTP).</li>
-            <li>gfx942 is <strong>not</strong> affected by the gfx950 block-FP8 GEMM accuracy bug (PR #28471). GSM8K confirms healthy numerics.</li>
-          </ul>
-        </div>
-      </div>
-
-      <!-- Performance & Accuracy -->
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
-        <h4 class="text-sm font-semibold text-white mb-4">Performance &amp; Accuracy (FP8, ISL 8192 / OSL 1024)</h4>
-        <div class="overflow-x-auto mb-6">
-          <table class="w-full text-xs text-left">
-            <thead class="text-gray-500 border-b border-white/10">
-              <tr><th class="py-2 pr-4">Concurrency</th><th class="py-2 pr-4">Output tok/s</th><th class="py-2 pr-4">tok/s/GPU</th><th class="py-2 pr-4">Median TPOT (ms)</th><th class="py-2 pr-4">Median TTFT (ms)</th></tr>
-            </thead>
-            <tbody class="text-gray-300 font-display">
-              <tr class="border-b border-white/5"><td class="py-2 pr-4">1</td><td class="py-2 pr-4">47.8</td><td class="py-2 pr-4">6.0</td><td class="py-2 pr-4">18.9</td><td class="py-2 pr-4">1,458</td></tr>
-              <tr class="border-b border-white/5"><td class="py-2 pr-4">16</td><td class="py-2 pr-4">311.5</td><td class="py-2 pr-4">38.9</td><td class="py-2 pr-4">41.4</td><td class="py-2 pr-4">10,226</td></tr>
-              <tr><td class="py-2 pr-4">64</td><td class="py-2 pr-4">528.1</td><td class="py-2 pr-4">66.0</td><td class="py-2 pr-4">72.7</td><td class="py-2 pr-4">15,849</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p class="text-xs text-gray-500 mb-4">Single-batch latency (<code>bench_one_batch</code>, bs=1): prefill 1.33 s (6,170 tok/s), decode 19.6 ms/token. TTFT above is pessimistic (small prefill chunk serializes prefills). vs NVIDIA (which use EAGLE MTP, disabled on AMD): H200 balanced conc-64 = 25.6 ms TPOT / 219 tok/s/GPU; B300 = 23.4 / 245.</p>
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">GSM8K (n=1319)</div>
-            <div class="text-green-400 font-display mt-1">97.2% <span class="text-gray-600">(ref 98.2%)</span></div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">AIME25 (sgl-eval, n=16)</div>
-            <div class="text-green-400 font-display mt-1">90.6% <span class="text-gray-600">(ref 87.7%, ≈parity)</span></div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Playbook</div>
-            <div class="text-white font-display mt-1"><a href="glm52_fp8_playbook.md" class="text-[#ED1C24] hover:underline">glm52_fp8_playbook.md</a></div>
-          </div>
-        </div>
-        <p class="text-[11px] text-gray-600 mt-3">AIME25: use <code>sgl-eval</code> (NV's harness) = <strong>90.6%</strong> pass@1[avg-of-16], truncated 0%. The in-tree <code>run_eval</code> reports only 62.5% due to a strict <code>Answer:</code> regex — a harness artifact, not the model. Use <code>--max-tokens 64000</code> (GLM-5.2 defaults to 'max' reasoning effort).</p>
-      </div>
-
-      <!-- Long context (DSA) -->
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mt-6">
-        <h4 class="text-sm font-semibold text-white mb-1">Long context &mdash; DSA + 1M window</h4>
-        <p class="text-xs text-gray-500 mb-4">LongBench-v2 (reasoning accuracy) and serving perf vs input length. GLM-5.2's DeepSeek Sparse Attention keeps decode cheap at long context.</p>
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs mb-6">
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">LongBench-v2 (subset, ~64k cap)</div>
-            <div class="text-green-400 font-display mt-1">59.5% <span class="text-gray-600">(human 53.7%, o1-preview 57.7%)</span></div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Decode @ 256k ctx</div>
-            <div class="text-white font-display mt-1">24.2 ms TPOT <span class="text-gray-600">(8k: 18.9 ms)</span></div>
-          </div>
-          <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">Prefill throughput</div>
-            <div class="text-white font-display mt-1">~8,000 tok/s</div>
-          </div>
-        </div>
-        <div class="overflow-x-auto">
-          <table class="w-full text-xs text-left">
-            <thead class="text-gray-500 border-b border-white/10">
-              <tr><th class="py-2 pr-4">Input length</th><th class="py-2 pr-4">TTFT median</th><th class="py-2 pr-4">TPOT (ms)</th><th class="py-2 pr-4">Output tok/s</th></tr>
-            </thead>
-            <tbody class="text-gray-300 font-display">
-              <tr class="border-b border-white/5"><td class="py-2 pr-4">8,192</td><td class="py-2 pr-4">1.4 s</td><td class="py-2 pr-4">18.9</td><td class="py-2 pr-4">47.7</td></tr>
-              <tr class="border-b border-white/5"><td class="py-2 pr-4">32,768</td><td class="py-2 pr-4">4.6 s</td><td class="py-2 pr-4">19.5</td><td class="py-2 pr-4">38.7</td></tr>
-              <tr class="border-b border-white/5"><td class="py-2 pr-4">131,072</td><td class="py-2 pr-4">23.6 s</td><td class="py-2 pr-4">21.5</td><td class="py-2 pr-4">19.0</td></tr>
-              <tr><td class="py-2 pr-4">262,144</td><td class="py-2 pr-4">43.8 s</td><td class="py-2 pr-4">24.2</td><td class="py-2 pr-4">11.5</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p class="text-[11px] text-gray-600 mt-3">DSA win: decode TPOT rises only 18.9 &rarr; 24.2 ms across a 32&times; context jump (8k &rarr; 256k); TTFT scales with prefill. Uses safe <code>--chunked-prefill-size 8192</code> (conc 1).</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- Benchmarking Section -->
-<section id="benchmarking" class="py-12 px-6">
-  <div class="max-w-6xl mx-auto">
-    <h2 class="text-2xl font-bold text-white mb-2">Benchmarking</h2>
-    <p class="text-sm text-gray-500 mb-8">
-      Use <code class="text-gray-400 bg-surface-2 px-1.5 py-0.5 rounded text-xs font-display">bench_one_batch_server</code>
-      to measure single-batch latency including HTTP and scheduler overhead. Connect to a running server.
+    <p class="sec-note" style="margin-bottom:22px">
+      Pick a model, then a verified cell in the coverage matrix (target × strategy). Cells marked
+      <b>—</b> aren't benchmarked yet — we publish measured numbers only.
     </p>
 
-    <!-- Benchmark Matrix -->
-    <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
-      <h3 class="text-sm font-semibold text-white mb-4">Test Matrix</h3>
-      <div class="overflow-x-auto">
-        <table class="w-full text-xs">
-          <thead>
-            <tr class="text-gray-500 border-b border-white/5">
-              <th class="text-left py-2 pr-4 font-medium">Input Tokens</th>
-              <th class="text-left py-2 pr-4 font-medium">Output Tokens</th>
-              <th class="text-left py-2 pr-4 font-medium">Batch Size</th>
-              <th class="text-left py-2 font-medium">Measures</th>
-            </tr>
-          </thead>
-          <tbody class="font-display text-gray-300">
-            <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">512</td><td class="pr-4">1</td><td>Prefill + decode latency</td></tr>
-            <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">1,024</td><td class="pr-4">1,024</td><td class="pr-4">1</td><td>Short-context long-generation</td></tr>
-            <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">512</td><td class="pr-4">1</td><td>Medium-context prefill stress</td></tr>
-            <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">8,192</td><td class="pr-4">1,024</td><td class="pr-4">1</td><td>Medium-context full pipeline</td></tr>
-            <tr class="bench-row border-b border-white/3"><td class="py-2 pr-4">16,384</td><td class="pr-4">512</td><td class="pr-4">1</td><td>Long-context prefill stress</td></tr>
-            <tr class="bench-row"><td class="py-2 pr-4">16,384</td><td class="pr-4">1,024</td><td class="pr-4">1</td><td>Long-context full pipeline</td></tr>
-          </tbody>
-        </table>
-      </div>
+    <div class="modeltabs" id="modeltabs" role="tablist" aria-label="Models"><!-- app.js --></div>
+    <div class="matrix-wrap" id="matrixwrap"><!-- app.js --></div>
+    <div class="recipe" id="recipe"><!-- app.js --></div>
+  </div>
+</section>
+
+<!-- ───────────────────────────── roadmap / what's missing ───────────────────────────── -->
+<section id="roadmap" aria-labelledby="roadmap-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">02 · roadmap</span>
+      <h2 id="roadmap-h">What's missing — and how to fill it</h2>
     </div>
+    <p class="sec-note" style="margin-bottom:22px">
+      Every gap below is a config or metric we haven't measured. Each comes with the exact command to run
+      against a live server — the result drops straight into <code class="mono">models.js</code> as a verified row.
+      This is the to-do list; <a href="https://github.com/jhinpan/sglang-amd-cookbook/tree/main/bench">ready-made harness scripts live in <code class="mono">bench/</code></a>.
+    </p>
+    <div class="roadmap-grid" id="roadmap-body"><!-- app.js --></div>
+  </div>
+</section>
 
-    <!-- Run All Benchmarks -->
-    <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
-      <h3 class="text-sm font-semibold text-white mb-4">Run Full Benchmark Suite</h3>
-      <p class="text-xs text-gray-500 mb-4">Iterates through all input/output length combinations. Assumes server is running on port 30000.</p>
-      <div class="code-block-wrapper">
-        <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; full benchmark sweep</div>
-        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-        <pre class="language-bash"><code>for INPUT_LEN in 1024 8192 16384; do
-  for OUTPUT_LEN in 512 1024; do
-    echo "====== Input: ${INPUT_LEN}, Output: ${OUTPUT_LEN} ======"
-    python3 -m sglang.bench_one_batch_server \
-        --model None \
-        --base-url http://localhost:30000 \
-        --batch-size 1 \
-        --input-len $INPUT_LEN \
-        --output-len $OUTPUT_LEN
-    echo ""
-  done
-done</code></pre>
-      </div>
+<!-- ───────────────────────────── deploy / prerequisites ───────────────────────────── -->
+<section id="deploy" aria-labelledby="deploy-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">03 · deploy</span>
+      <h2 id="deploy-h">Before you launch</h2>
     </div>
-
-    <!-- Individual Commands -->
-    <div class="bg-surface-1 rounded-xl border border-white/5 p-6 mb-6">
-      <h3 class="text-sm font-semibold text-white mb-4">Individual Commands</h3>
-      <p class="text-xs text-gray-500 mb-4">Pick and run a specific combination.</p>
-      <div class="grid md:grid-cols-2 gap-4">
-
-        <div class="code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">1K in &rarr; 512 out</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code>python3 -m sglang.bench_one_batch_server \
-    --model None \
-    --base-url http://localhost:30000 \
-    --batch-size 1 \
-    --input-len 1024 \
-    --output-len 512</code></pre>
-        </div>
-
-        <div class="code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">1K in &rarr; 1K out</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code>python3 -m sglang.bench_one_batch_server \
-    --model None \
-    --base-url http://localhost:30000 \
-    --batch-size 1 \
-    --input-len 1024 \
-    --output-len 1024</code></pre>
-        </div>
-
-        <div class="code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">8K in &rarr; 512 out</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code>python3 -m sglang.bench_one_batch_server \
-    --model None \
-    --base-url http://localhost:30000 \
-    --batch-size 1 \
-    --input-len 8192 \
-    --output-len 512</code></pre>
-        </div>
-
-        <div class="code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">8K in &rarr; 1K out</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code>python3 -m sglang.bench_one_batch_server \
-    --model None \
-    --base-url http://localhost:30000 \
-    --batch-size 1 \
-    --input-len 8192 \
-    --output-len 1024</code></pre>
-        </div>
-
-        <div class="code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">16K in &rarr; 512 out</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code>python3 -m sglang.bench_one_batch_server \
-    --model None \
-    --base-url http://localhost:30000 \
-    --batch-size 1 \
-    --input-len 16384 \
-    --output-len 512</code></pre>
-        </div>
-
-        <div class="code-block-wrapper">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">16K in &rarr; 1K out</div>
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code>python3 -m sglang.bench_one_batch_server \
-    --model None \
-    --base-url http://localhost:30000 \
-    --batch-size 1 \
-    --input-len 16384 \
-    --output-len 1024</code></pre>
+    <p class="sec-note" style="margin-bottom:22px">
+      Shared setup for every recipe. The model-specific Docker image, weights path, and flags live in each recipe card above.
+    </p>
+    <div class="steps">
+      <div class="step">
+        <div class="num" aria-hidden="true"></div>
+        <div class="st-body">
+          <h3>Disable NUMA balancing</h3>
+          <p>Kernel NUMA auto-balancing migrates pages under the GPU and costs throughput. Turn it off before serving.</p>
+          <div class="cmd" data-cmd>
+            <div class="cmd-bar"><span class="tag">bash</span><button class="copy-btn" data-copy>Copy</button></div>
+            <pre><code>sudo sh -c 'echo 0 &gt; /proc/sys/kernel/numa_balancing'
+cat /proc/sys/kernel/numa_balancing   # expect: 0</code></pre>
+          </div>
         </div>
       </div>
-    </div>
-
-    <!-- bench_serving (online serving) -->
-    <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
-      <h3 class="text-sm font-semibold text-white mb-4">Online Serving Benchmark (Optional)</h3>
-      <p class="text-xs text-gray-500 mb-4">For more realistic multi-client throughput testing, use <code class="text-gray-400 bg-surface-2 px-1.5 py-0.5 rounded text-xs font-display">bench_serving</code> instead.</p>
-      <div class="code-block-wrapper">
-        <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash</div>
-        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-        <pre class="language-bash"><code>CON="16 32 64 128"
-ISL=3200
-OSL=800
-for con in $CON; do
-    PROMPTS=$(($con * 5))
-    python3 -m sglang.bench_serving \
-        --dataset-name random \
-        --random-input-len $ISL \
-        --random-output-len $OSL \
-        --num-prompt $PROMPTS \
-        --random-range-ratio 1.0 \
-        --max-concurrency $con
-done</code></pre>
+      <div class="step">
+        <div class="num" aria-hidden="true"></div>
+        <div class="st-body">
+          <h3>Mount the HuggingFace cache</h3>
+          <p>Bind-mount the host weights cache into the container so models load offline. Recipes assume the cache is visible at <code>/hf-cache</code>.</p>
+          <div class="cmd" data-cmd>
+            <div class="cmd-bar"><span class="tag">bash</span><button class="copy-btn" data-copy>Copy</button></div>
+            <pre><code># host HF cache  ->  /hf-cache inside the container
+-v /data/hf-cache:/hf-cache  -e HF_HOME=/hf-cache</code></pre>
+          </div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num" aria-hidden="true"></div>
+        <div class="st-body">
+          <h3>Pull the model's verified image</h3>
+          <p>Each recipe pins the exact <code>rocm/sgl-dev</code> (or bespoke) image it was measured on — copy it from the recipe's provenance footnote. ROCm 7.2 / MI35x images also cover gfx942.</p>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- References -->
-<section id="references" class="py-12 px-6 border-t border-white/5">
-  <div class="max-w-6xl mx-auto">
-    <h2 class="text-2xl font-bold text-white mb-8">References</h2>
-    <div class="grid md:grid-cols-3 gap-6">
-
-      <!-- SGLang PRs -->
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
-        <h3 class="text-sm font-semibold text-white mb-4">SGLang PRs</h3>
-        <ul class="space-y-2 text-xs">
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://github.com/sgl-project/sglang/pull/17863" class="text-gray-400 hover:text-white transition">[AMD] Kimi K2.5 Day 0 &mdash; W4A16 MoE Triton routing (#17863)</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://github.com/sgl-project/sglang/pull/19228" class="text-gray-400 hover:text-white transition">[AMD] Kimi K2.5 fused_moe_triton perf tuning (#19228)</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://github.com/sgl-project/sglang/pull/18269" class="text-gray-400 hover:text-white transition">[AMD] Kimi K2.5 nightly test (#18269)</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://github.com/sgl-project/sglang/pull/23381" class="text-gray-400 hover:text-white transition">[AMD] EP scaling groundwork for Kimi K2.6 (#23381)</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://github.com/sgl-project/sglang/pull/23600" class="text-gray-400 hover:text-white transition">DeepSeek-V4 base implementation (#23600)</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://github.com/sgl-project/sglang/pull/23608" class="text-gray-400 hover:text-white transition">[AMD] DeepSeek-V4 AMD support + Flash/Pro recipes (#23608)</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://github.com/sgl-project/sglang/pull/18911" class="text-gray-400 hover:text-white transition">[AMD] GLM-5 Day 0 nightly test (#18911)</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://github.com/sgl-project/sglang/pull/19989" class="text-gray-400 hover:text-white transition">[AMD] GLM-5 NSA tensor aliasing fix (#19989)</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://github.com/sgl-project/sglang/pull/21272" class="text-gray-400 hover:text-white transition">[AMD] Auto-detect Eagle3 draft model mismatch (#21272)</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://github.com/sgl-project/sglang/pull/21274" class="text-gray-400 hover:text-white transition">[AMD] Fix Eagle3 eagle_config parsing (#21274)</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://github.com/sgl-project/sglang/pull/21275" class="text-gray-400 hover:text-white transition">[AMD] Enable non-greedy Eagle3 on ROCm (#21275)</a>
-          </li>
-        </ul>
+<!-- ───────────────────────────── method ───────────────────────────── -->
+<section id="method" aria-labelledby="method-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">04 · method</span>
+      <h2 id="method-h">How the numbers are made</h2>
+    </div>
+    <div class="refs">
+      <div class="refcol">
+        <h3>Latency — offline</h3>
+        <p class="sec-note"><code class="mono">sglang.bench_one_batch</code> runs a single <code class="mono">batch×input_len</code> forward unchunked. Reports prefill tok/s and per-token decode (TPOT) at BS=1 — the single-request floor.</p>
       </div>
-
-      <!-- Documentation -->
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
-        <h3 class="text-sm font-semibold text-white mb-4">Documentation</h3>
-        <ul class="space-y-2 text-xs">
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://docs.sglang.io/developer_guide/benchmark_and_profiling.html" class="text-gray-400 hover:text-white transition">SGLang Benchmark &amp; Profiling Guide</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://sgl-project.github.io/advanced_features/server_arguments.html" class="text-gray-400 hover:text-white transition">SGLang Server Arguments Reference</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://rocm.blogs.amd.com/artificial-intelligence/kimi-k2/README.html" class="text-gray-400 hover:text-white transition">AMD Blog: Kimi-K2 on MI355X</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://hub.docker.com/r/lmsysorg/sglang/tags" class="text-gray-400 hover:text-white transition">SGLang Docker Hub Tags</a>
-          </li>
-        </ul>
+      <div class="refcol">
+        <h3>Throughput — online</h3>
+        <p class="sec-note"><code class="mono">sglang.bench_serving</code> drives the live server with chunked prefill across concurrency levels. Reports TTFT, TPOT, and tok/s/GPU — the apples-to-apples basis for the NVIDIA comparison.</p>
       </div>
-
-      <!-- Models -->
-      <div class="bg-surface-1 rounded-xl border border-white/5 p-6">
-        <h3 class="text-sm font-semibold text-white mb-4">Model Pages</h3>
-        <ul class="space-y-2 text-xs">
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://huggingface.co/Qwen/Qwen3.5-397B-A17B" class="text-gray-400 hover:text-white transition">Qwen3.5-397B-A17B on HuggingFace</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://huggingface.co/moonshotai/Kimi-K2.5" class="text-gray-400 hover:text-white transition">Kimi-K2.5 on HuggingFace</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://huggingface.co/moonshotai/Kimi-K2.6" class="text-gray-400 hover:text-white transition">Kimi-K2.6 on HuggingFace</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://huggingface.co/sgl-project/DeepSeek-V4-Flash-FP8" class="text-gray-400 hover:text-white transition">DeepSeek-V4-Flash-FP8 on HuggingFace</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://huggingface.co/sgl-project/DeepSeek-V4-Pro-FP8" class="text-gray-400 hover:text-white transition">DeepSeek-V4-Pro-FP8 on HuggingFace</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://huggingface.co/zai-org/GLM-5-FP8" class="text-gray-400 hover:text-white transition">GLM-5-FP8 on HuggingFace</a>
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="text-[#ED1C24] shrink-0">&bull;</span>
-            <a href="https://huggingface.co/zai-org/GLM-5" class="text-gray-400 hover:text-white transition">GLM-5 (BF16) on HuggingFace</a>
-          </li>
-        </ul>
+      <div class="refcol">
+        <h3>Roofline</h3>
+        <p class="sec-note">Decode ceiling = aggregate HBM bandwidth ÷ active-parameter bytes (memory-bound, BS=1). The gauge shows measured ÷ ceiling. See <a href="#method-detail">the full formula</a>.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- Footer -->
-<footer class="py-8 px-6 border-t border-white/5">
-  <div class="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-4 text-xs text-gray-600">
-    <div>SGLang AMD Cookbook &mdash; <a href="https://github.com/jhinpan" class="hover:text-gray-400">@jhinpan</a></div>
-    <div>Last updated: April 2026 &mdash; added Kimi-K2.6 &amp; DeepSeek-V4-Flash</div>
+<!-- ───────────────────────────── references ───────────────────────────── -->
+<section id="references" aria-labelledby="refs-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="eyebrow">05 · references</span>
+      <h2 id="refs-h">References</h2>
+    </div>
+    <div class="refs">
+      <div class="refcol">
+        <h3>SGLang</h3>
+        <ul id="refs-sglang"><!-- app.js may augment --></ul>
+      </div>
+      <div class="refcol">
+        <h3>Docs</h3>
+        <ul>
+          <li><span class="arrow">→</span> <a href="https://docs.sglang.io/">SGLang documentation</a></li>
+          <li><span class="arrow">→</span> <a href="https://cookbook.sglang.io/">SGLang cookbook (NVIDIA baselines)</a></li>
+          <li><span class="arrow">→</span> <a href="https://rocm.docs.amd.com/">ROCm documentation</a></li>
+        </ul>
+      </div>
+      <div class="refcol">
+        <h3>Models</h3>
+        <ul id="refs-models"><!-- app.js --></ul>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- ───────────────────────────── footer ───────────────────────────── -->
+<footer class="foot">
+  <div class="wrap">
+    <div class="method" id="method-detail">
+      <h3>Roofline methodology</h3>
+      <p>
+        The decode gauge uses a first-principles <b>memory-bound</b> ceiling at batch size 1:
+        <code>SOL_tok/s = (GPUs × HBM_bandwidth) ÷ (active_params × bytes_per_param)</code>,
+        with <code>bytes_per_param</code> = 1 (FP8), 2 (BF16), 0.5 (W4A16/INT4). The prefill gauge uses a
+        <b>compute-bound</b> ceiling: <code>(GPUs × peak_FP8_FLOPS) ÷ (2 × active_params)</code>.
+      </p>
+      <p>
+        These are theoretical ceilings, not targets you'd hit at BS=1 — the headroom reflects small-batch
+        inefficiency plus AMD kernel maturity (no MTP/spec-decode here, reference attention paths, etc.).
+        Closing that headroom is the optimization work this cookbook tracks.
+      </p>
+    </div>
+    <div class="legal">
+      <span>SGLang × AMD Instinct serving datasheet</span>
+      <span>·</span>
+      <span>verified-only · MIT</span>
+      <span>·</span>
+      <a href="https://github.com/jhinpan/sglang-amd-cookbook">github.com/jhinpan/sglang-amd-cookbook</a>
+    </div>
   </div>
 </footer>
 
-<script>
-function switchModel(modelId) {
-  document.querySelectorAll('.model-section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('model-' + modelId).classList.add('active');
-  document.getElementById('tab-' + modelId).classList.add('active');
-}
-
-function copyCode(btn) {
-  const wrapper = btn.closest('.code-block-wrapper');
-  const code = wrapper.querySelector('code');
-  const text = code.textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    btn.textContent = 'Copied!';
-    btn.classList.add('copied');
-    setTimeout(() => {
-      btn.textContent = 'Copy';
-      btn.classList.remove('copied');
-    }, 2000);
-  });
-}
-</script>
-
+<script src="models.js"></script>
+<script src="app.js" defer></script>
 </body>
 </html>
