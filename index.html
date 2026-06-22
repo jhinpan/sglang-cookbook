@@ -1469,9 +1469,9 @@ curl -s http://localhost:30000/v1/chat/completions \
 
         <!-- Image -->
         <div class="code-block-wrapper mb-6">
-          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; image (ROCm 7.2 / MI35x line, supports gfx942 + gfx950)</div>
+          <div class="bg-surface-3 rounded-t-lg px-3 py-1.5 text-xs text-gray-500 font-display">bash &mdash; image (AMD ROCm 7.2, MI300X / gfx942)</div>
           <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre class="language-bash"><code>docker pull rocm/sgl-dev:v0.5.13.post1-rocm720-mi35x</code></pre>
+          <pre class="language-bash"><code>docker pull rocm/sgl-dev:v0.5.13.post1-rocm720-mi30x-20260620</code></pre>
         </div>
 
         <!-- BF16 note -->
@@ -1540,7 +1540,7 @@ python3 -m sglang.launch_server \
           </div>
           <div class="bg-surface-2 rounded-lg p-3">
             <div class="text-gray-500">AIME25 (sgl-eval, n=16)</div>
-            <div class="text-green-400 font-display mt-1">90.6% <span class="text-gray-600">(ref 87.7%, above ✓)</span></div>
+            <div class="text-green-400 font-display mt-1">90.6% <span class="text-gray-600">(ref 87.7%, ≈parity)</span></div>
           </div>
           <div class="bg-surface-2 rounded-lg p-3">
             <div class="text-gray-500">Playbook</div>

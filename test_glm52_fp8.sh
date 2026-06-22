@@ -5,7 +5,7 @@
 set -uo pipefail
 
 # --- image: ROCm 7.2 / MI35x line (supports gfx942 + gfx950) ---
-TAG="${TAG:-rocm/sgl-dev:v0.5.13.post1-rocm720-mi35x}"
+TAG="${TAG:-rocm/sgl-dev:v0.5.13.post1-rocm720-mi30x-20260620}"
 HF_HUB="${HF_HUB:-/data/hf-cache}"             # host HF cache mounted to /hf-cache
 MODEL_REPO="${MODEL_REPO:-zai-org/GLM-5.2-FP8}"
 PORT="${PORT:-30000}"
