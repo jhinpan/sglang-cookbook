@@ -1539,15 +1539,15 @@ python3 -m sglang.launch_server \
             <div class="text-green-400 font-display mt-1">97.2% <span class="text-gray-600">(ref 98.2%)</span></div>
           </div>
           <div class="bg-surface-2 rounded-lg p-3">
-            <div class="text-gray-500">AIME25 (rep 8, 64k)</div>
-            <div class="text-green-400 font-display mt-1">62.5% <span class="text-gray-600">(ref 87.7%)</span></div>
+            <div class="text-gray-500">AIME25 (sgl-eval, n=16)</div>
+            <div class="text-green-400 font-display mt-1">90.6% <span class="text-gray-600">(ref 87.7%, above ✓)</span></div>
           </div>
           <div class="bg-surface-2 rounded-lg p-3">
             <div class="text-gray-500">Playbook</div>
             <div class="text-white font-display mt-1"><a href="glm52_fp8_playbook.md" class="text-[#ED1C24] hover:underline">glm52_fp8_playbook.md</a></div>
           </div>
         </div>
-        <p class="text-[11px] text-gray-600 mt-3">AIME25 must use <code>--max-tokens 64000</code>: GLM-5.2 defaults to 'max' reasoning effort, so a 32k cap truncates hard problems (gave 56.3%, an artifact).</p>
+        <p class="text-[11px] text-gray-600 mt-3">AIME25: use <code>sgl-eval</code> (NV's harness) = <strong>90.6%</strong> pass@1[avg-of-16], truncated 0%. The in-tree <code>run_eval</code> reports only 62.5% due to a strict <code>Answer:</code> regex — a harness artifact, not the model. Use <code>--max-tokens 64000</code> (GLM-5.2 defaults to 'max' reasoning effort).</p>
       </div>
 
       <!-- Long context (DSA) -->

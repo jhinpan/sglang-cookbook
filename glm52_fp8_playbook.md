@@ -109,20 +109,23 @@ done
 ## 5. Accuracy
 
 ```bash
-# GSM8K (chat + thinking)
+# GSM8K (chat + thinking) — in-tree harness is fine here
 python3 -m sglang.test.run_eval --port 30000 --eval-name gsm8k \
   --thinking-mode glm-45 --max-tokens 8192 --temperature 0 --num-examples 1319
 
-# AIME25 (chat + thinking, cookbook spec). max-tokens=64000 is REQUIRED:
-# GLM-5.2 defaults to 'max' reasoning effort; a 32k cap truncates hard problems → ~56% (artifact).
-python3 -m sglang.test.run_eval --port 30000 --eval-name aime25 \
-  --thinking-mode glm-45 --repeat 8 --max-tokens 64000 --temperature 1.0 --top-p 0.95
+# AIME25 — use sgl-eval (NV's official harness), NOT the in-tree run_eval.
+# The in-tree simple-evals answer regex undercounts this model badly (62.5% vs 90.6%).
+pip install git+https://github.com/sgl-project/sgl-eval
+sgl-eval run aime25 --api-key EMPTY --base-url http://localhost:30000/v1 \
+  --n-repeats 16 --max-tokens 64000 --temperature 1.0 --top-p 0.95 --thinking
 ```
 
 | Benchmark | GLM-5.2-FP8 @ MI300X | Cookbook ref | Notes |
 |-----------|----------------------|--------------|-------|
 | **GSM8K** | **97.2%** (n=1319) | 98.2% | parity ✓ — FP8 numerics healthy on gfx942 |
-| **AIME25** | **62.5%** (8 reps, max_tokens 64000) | 87.7% | 32k cap gave 56.3% (truncation); 64k → 62.5%. Residual gap: hardest items still hit 64k + harness/parser diffs |
+| **AIME25** (`sgl-eval`) | **90.6%** pass@1[avg-of-16] ±4.25% | 87.7% | **above ref ✓** — pass@16 100%, majority@16 96.7%, truncated 0% |
+
+> **Harness caveat (important):** with the **same model/server/settings**, the in-tree `sglang.test.run_eval --eval-name aime25` reports only **62.5%** because its `ANSWER_PATTERN = (?i)Answer\s*:\s*(...)` first-match regex grabs an intermediate "Answer:" from the reasoning trace or misses non-`Answer:` formats → false zeros. `sgl-eval` (NV's official harness) reports **90.6%** with `truncated_rate=0%`. Always use **`sgl-eval`** for AIME-style answer-extraction evals; the in-tree simple-evals are not reliable for this model.
 
 ## 6. Comparison vs NVIDIA (SGLang cookbook, GLM-5.2-FP8, ISL 8192 / OSL 1024)
 
