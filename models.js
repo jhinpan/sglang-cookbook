@@ -127,6 +127,12 @@ window.MODELS = [
             "value": "59.5%",
             "note": "subset, ~64k-tok cap; in-tree run_eval --eval-name longbench_v2 --thinking-mode glm-45 --num-examples 50 --max-context-length 256000. Beats human and o1-preview on the subset.",
             "ref": "human 53.7%, o1-preview 57.7%, best direct model 50.1%"
+          },
+          {
+            "name": "KernelBench (Triton kernel-gen)",
+            "value": "92/250 correct (37%)",
+            "note": "Capability eval, NOT model QA: GLM-5.2 writes Triton GPU kernels for KernelBench PyTorch programs and they are compiled + correctness-checked on MI300X (gfx942), one-shot/greedy/1 sample. compiled 178/250 (71%). Per level (compiled / correct): L1 84/51, L2 78/35, L3 16/6. fast_1=0 -- no one-shot kernel beats PyTorch eager (rocBLAS/aten). Required a code-extraction fix (pick the ModelNew block, not the first code block); the buggy first pass scored only 50/250 (20%). Full report + scripts on branch jhinpan/KernelBench@MI300-GLM5.2.",
+            "ref": "buggy-extraction baseline 20%; one-shot is a floor (no pass@k / self-repair)"
           }
         ],
         "benchmarks": [
