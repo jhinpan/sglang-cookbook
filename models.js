@@ -52,7 +52,7 @@ window.MODELS = [
     "bytes_per_param": 1,
     "weights_gb": 704,
     "context_len": "1048576",
-    "summary": "Single-node TP=8 deployment of zai-org/GLM-5.2-FP8 (MoE + MLA/DSA, glm_moe_dsa) on 8x MI300X (gfx942) with SGLang and the DSA tilelang prefill+decode backend. FP8 weights (704 GB -> 88 GB/GPU) fit single-node; BF16 (~1.4 TB -> ~175 GB/GPU) does not. bf16 KV cache, chunked-prefill 8192, no MTP/speculative decoding on AMD. Verified end-to-end: server, latency, throughput, accuracy (GSM8K 97.2%, AIME25 90.6% pass@1 avg-of-16), and long-context (LongBench-v2 59.5%, near-flat decode TPOT 18.9->24.2 ms from 8k to 256k ctx). The gfx950 block-FP8 GEMM accuracy bug does NOT affect gfx942.",
+    "summary": "Single-node TP=8 deployment of zai-org/GLM-5.2-FP8 (MoE + MLA/DSA, glm_moe_dsa) with SGLang and the DSA tilelang prefill+decode backend, verified on BOTH 8x MI300X (gfx942) and 8x MI355X (gfx950). FP8 weights (704 GB -> 88 GB/GPU) fit single-node; BF16 (~1.4 TB -> ~175 GB/GPU) does not. bf16 KV cache, chunked-prefill 8192, no MTP/speculative decoding on AMD. The launch command is IDENTICAL on both GPUs; gfx950 additionally requires TWO mandatory source patches first (the _use_aiter_bpreshuffle_gfx95=False flag in BOTH fp8_utils.py and models/deepseek_common/utils.py) or GSM8K collapses to ~0.0 (#28685, ROCm 7.2 kernel miscompile) -- gfx942 needs none of them. (A third, SGLANG_FP8_PAGED_MQA_LOGITS_TORCH, is already the correct default for GLM-5.2's GlmMoeDsaForCausalLM path and only matters if you also serve DeepSeek-V4 from the same tree.) Accuracy at parity on both (GSM8K 97.2% / 97.7%; AIME25 via sgl-eval pass@1 avg-of-16: MI300X 90.6%, MI355X 91.5% -- both within noise, both beat the 87.7% ref). MI355X is ~1.4-1.9x faster than MI300X (single-stream 67 vs 48 tok/s; c64 1009 vs 528 tok/s). Long-context: LongBench-v2 59.5%, near-flat decode TPOT at long ctx.",
     "configs": [
       {
         "gfx": "gfx942",
@@ -310,15 +310,152 @@ window.MODELS = [
           "date": "2026-06-20/2026-06-21",
           "node": "8x MI300X (gfx942), 192 GiB each; PyTorch 2.9.1+rocm7.2.0; tilelang 0.1.7.post3"
         }
+      },
+      {
+        "gfx": "gfx950",
+        "hw_name": "MI355X",
+        "gpus": 8,
+        "quant": "FP8 (block-FP8 MoE weights), bf16 KV cache",
+        "strategy": "low-latency",
+        "nodes": "single",
+        "verified": true,
+        "docker_image": null,
+        "launch_python": "# ============================================================================\n# STEP 1 (gfx950 ONLY) — apply TWO MANDATORY source patches before first launch.\n# Without them GSM8K collapses to ~0.0 with token-garbage. MI300X/gfx942 needs\n# NONE of these (see the MI300X tab: identical launch flags, no patches).\n# Editable install => patches take effect at next process start, no rebuild.\n# ============================================================================\nSRT=$(python3 -c 'import os,sglang.srt as m; print(os.path.dirname(m.__file__))')\n# Patch #1  block-FP8 bpreshuffle GEMM is miscompiled on ROCm 7.2 (sglang #28685).\nsed -i 's/^_use_aiter_bpreshuffle_gfx95 = .*/_use_aiter_bpreshuffle_gfx95 = False  # FORCED OFF (gfx950 #28685)/' \\\n  \"$SRT/layers/quantization/fp8_utils.py\"\n# Patch #1b SAME flag, SECOND definition. GLM-5.2 is GlmMoeDsaForCausalLM ->\n#          DeepseekV2ForCausalLM, and its MLA/activation-quant path reads the flag\n#          from deepseek_common/utils.py, NOT from fp8_utils.py. Patching only #1\n#          leaves GSM8K=0.0 -- THIS is the easy-to-miss one.\nsed -i 's/^_use_aiter_bpreshuffle_gfx95 = .*/_use_aiter_bpreshuffle_gfx95 = False  # FORCED OFF (gfx950 #28685)/' \\\n  \"$SRT/models/deepseek_common/utils.py\"\n# Verify BOTH say False (the fix is the value, not just the name):\ngrep -n '^_use_aiter_bpreshuffle_gfx95' \"$SRT/layers/quantization/fp8_utils.py\" \"$SRT/models/deepseek_common/utils.py\"\n\n# ----------------------------------------------------------------------------\n# OPTIONAL (only if you ALSO serve DeepSeek-V4 from this same tree):\n# SGLANG_FP8_PAGED_MQA_LOGITS_TORCH must be False for long-context correctness.\n# For GLM-5.2 this is ALREADY the default -- the .set(True) line lives in the\n# DeepseekV4ForCausalLM branch of server_args.py, and GLM-5.2's model_arch is\n# GlmMoeDsaForCausalLM, so it never runs and the global default (False) holds.\n# Long-context needle-recall verified PASS on the default, no patch. Apply the\n# env-aware patch below ONLY for DeepseekV4 (it is a no-op for GLM-5.2):\n#   python3 - \"$SRT/server_args.py\" <<'PY'\n#   import sys; p=sys.argv[1]; L=open(p).read().split(chr(10)); hip=False\n#   for i,l in enumerate(L):\n#       s=l.strip()\n#       if s=='elif is_hip():': hip=True; continue\n#       if hip and (s.startswith('elif ') or s.startswith('else:')): hip=False\n#       if hip and 'SGLANG_FP8_PAGED_MQA_LOGITS_TORCH.set(True)' in l:\n#           ind=l[:len(l)-len(l.lstrip())]\n#           L[i]=ind+'if not envs.SGLANG_FP8_PAGED_MQA_LOGITS_TORCH.is_set():'+chr(10)+ind+'    envs.SGLANG_FP8_PAGED_MQA_LOGITS_TORCH.set(False)'\n#           break\n#   open(p,'w').write(chr(10).join(L))\n#   PY\n\n# ============================================================================\n# STEP 2 — launch (TP=8, DSA tilelang). The launch FLAGS are IDENTICAL to the\n# MI300X tab; SGLANG_USE_AITER=1 is also set there (via the container env /\n# test_glm52_fp8.sh wrapper) -- set it explicitly here to be self-contained.\n# ============================================================================\nexport SGLANG_USE_AITER=1\nexport PYTORCH_HIP_ALLOC_CONF=expandable_segments:True\npython3 -m sglang.launch_server \\\n  --model-path zai-org/GLM-5.2-FP8 --served-model-name glm-5.2 \\\n  --trust-remote-code --tp 8 \\\n  --dsa-prefill-backend tilelang --dsa-decode-backend tilelang \\\n  --kv-cache-dtype bfloat16 --chunked-prefill-size 8192 \\\n  --mem-fraction-static 0.85 --cuda-graph-max-bs 64 --max-running-requests 64 \\\n  --watchdog-timeout 1200 --host 0.0.0.0 --port 30000",
+        "parallelism": {
+          "tp": 8,
+          "ep": null,
+          "dp": null
+        },
+        "attention_backend": "DSA tilelang (prefill+decode)",
+        "moe_backend": null,
+        "aiter": {
+          "enabled": true,
+          "commit": "7d604afe5",
+          "kernels": [
+            "GEMM (glm5_bf16_tuned_gemm.csv)"
+          ],
+          "tuned_artifacts": [
+            "glm5_bf16_tuned_gemm.csv"
+          ],
+          "summary": "AITER enabled (SGLANG_USE_AITER=1). The gfx950 bpreshuffle block-FP8 GEMM path is force-disabled in source in BOTH definition sites (miscompiled on ROCm 7.2, #28685); falls back to the correct ck_gemm_a8w8_blockscale (verified cosine 1.0 on gfx950). DSA attention runs via tilelang."
+        },
+        "env": [
+          {
+            "key": "SGLANG_USE_AITER",
+            "value": "1",
+            "why": "AITER kernels; ships glm5_bf16_tuned_gemm.csv"
+          },
+          {
+            "key": "PYTORCH_HIP_ALLOC_CONF",
+            "value": "expandable_segments:True",
+            "why": "reduce HIP allocator fragmentation for large MoE weights"
+          }
+        ],
+        "accuracy": [
+          {
+            "name": "GSM8K",
+            "value": "97.7%",
+            "note": "n=1319, chat+thinking; run_eval --eval-name gsm8k --thinking-mode glm-45 --max-tokens 8192 --temperature 0. REQUIRES the two mandatory gfx950 bpreshuffle patches (fp8_utils.py AND models/deepseek_common/utils.py). Without the SECOND one (deepseek_common/utils.py, which GLM-5.2's GlmMoeDsaForCausalLM->DeepseekV2ForCausalLM MLA/quant path actually reads), GSM8K collapses to 0.0 with token-garbage under batching. n=100 subset scored 98.0%.",
+            "ref": "98.2% (cookbook ref); MI300X/gfx942 re-run 97.2% — gfx950 reaches parity once both bpreshuffle sites are fixed"
+          },
+          {
+            "name": "AIME25",
+            "value": "91.5%",
+            "note": "pass@1 avg-of-16 via sgl-eval (NV official harness), n=30x16=480 samples; 95% CI 89.1-93.8 (pass@1 91.46% +/- 1.96*SEM, SEM 1.22%, std 4.86%). pass@16 100%, majority@16 93.3%, truncated 0.21%, error 0%, 9.46M completion tokens. Requires the two mandatory gfx950 bpreshuffle patches. Run with --n-repeats 16 --max-tokens 64000 --temperature 1.0 --top-p 0.95 --thinking. CAVEAT: always use sgl-eval, NOT in-tree run_eval (its strict Answer: first-match regex badly undercounts this thinking model). gfx950 reaches parity with gfx942 (90.6%) once the bpreshuffle sites are fixed.",
+            "ref": "87.7% (cookbook ref) -- beats ref; MI300X/gfx942 re-run 90.6% -- gfx950 at parity within noise"
+          }
+        ],
+        "benchmarks": [
+          {
+            "isl": 8192,
+            "osl": 1024,
+            "concurrency": 1,
+            "total_tok_s": 66.92,
+            "tok_s_per_gpu": 8.4,
+            "tpot_ms": 14.43,
+            "ttft_ms": 652.13,
+            "source": "MI355X re-run (bench_serving, conc=1; output verified correct, GSM8K 97.7%)"
+          },
+          {
+            "isl": 8192,
+            "osl": 1024,
+            "concurrency": 16,
+            "total_tok_s": 535.66,
+            "tok_s_per_gpu": 67.0,
+            "tpot_ms": 25.22,
+            "ttft_ms": 4790.27,
+            "source": "MI355X re-run (bench_serving, conc=16; output verified correct)"
+          },
+          {
+            "isl": 8192,
+            "osl": 1024,
+            "concurrency": 64,
+            "total_tok_s": 1008.95,
+            "tok_s_per_gpu": 126.1,
+            "tpot_ms": 41.45,
+            "ttft_ms": 13794.52,
+            "source": "MI355X re-run (bench_serving, conc=64; output verified correct)"
+          },
+          {
+            "isl": 8192,
+            "osl": 512,
+            "concurrency": 1,
+            "tpot_ms": 14.43,
+            "ttft_ms": 410.76,
+            "total_tok_s": 65.67,
+            "source": "MI355X re-run (long-context, conc=1)"
+          },
+          {
+            "isl": 32768,
+            "osl": 512,
+            "concurrency": 1,
+            "tpot_ms": 14.89,
+            "ttft_ms": 1180.39,
+            "total_tok_s": 58.19,
+            "source": "MI355X re-run (long-context, conc=1)"
+          },
+          {
+            "isl": 131072,
+            "osl": 512,
+            "concurrency": 1,
+            "tpot_ms": 16.63,
+            "ttft_ms": 5457.26,
+            "total_tok_s": 36.66,
+            "source": "MI355X re-run (long-context, conc=1)"
+          },
+          {
+            "isl": 262144,
+            "osl": 512,
+            "concurrency": 1,
+            "tpot_ms": 18.89,
+            "ttft_ms": 9584.27,
+            "total_tok_s": 26.59,
+            "source": "MI355X re-run (long-context, conc=1)"
+          }
+        ],
+        "vs_nvidia": [],
+        "gotchas": [
+          "CRITICAL gfx950 fix (TWO mandatory sites): _use_aiter_bpreshuffle_gfx95 must be forced False in BOTH (1) python/sglang/srt/layers/quantization/fp8_utils.py and (2) python/sglang/srt/models/deepseek_common/utils.py. ROCm 7.2 hipcc miscompiles aiter gemm_a8w8_blockscale_bpreshuffle (drops -mllvm -amdgpu-coerce-illegal-types), #28685. GLM-5.2 is GlmMoeDsaForCausalLM -> DeepseekV2ForCausalLM (models/glm4_moe.py), and its MLA/activation-quant path reads the flag from deepseek_common/utils.py, so patching ONLY fp8_utils.py leaves the model forward path broken -> GSM8K 0.0 and batched-decode token-garbage. With BOTH patched: GSM8K 97.7%, batched output correct. gfx942/MI300X is unaffected (never uses the bpreshuffle path).",
+          "The miscompiled bpreshuffle kernel is M-tile-sensitive (wrong rows cluster at 16-row tile boundaries, shift between runs), so single-token-answer bs=1 prompts can look correct while batched/longer prompts corrupt -- it is ONE bug, not a separate batching bug.",
+          "SGLANG_FP8_PAGED_MQA_LOGITS_TORCH must be False for long-context correctness -- but for GLM-5.2 this is ALREADY the default and needs NO patch. The .set(True) line in server_args.py is inside the `model_arch in [DeepseekV4ForCausalLM]` branch (~line 3786); GLM-5.2's model_arch is GlmMoeDsaForCausalLM, so that branch never runs and the global EnvBool default (False, environ.py) holds. Verified: long-context needle-recall PASSED on the default with no patch. The env-aware server_args.py patch only matters if you ALSO serve DeepSeek-V4 from the same tree (where .set(True) would otherwise clobber a shell export). Do NOT list it as a GLM-5.2 requirement.",
+          "KV-cache dtype must be bfloat16 with the DSA tilelang backend (FP8 KV incompatible).",
+          "Keep --chunked-prefill-size 8192 (unchunked long prefill trips the tilelang DSA tile limit).",
+          "No MTP / speculative decoding on AMD/gfx950.",
+          "Upstream permanent fix is the CK kernel rewrite ROCm/rocm-libraries#8639 (scalar-FMA/VGPR accumulator), which supersedes the disable workaround; not in aiter 7d604afe5, so the source workaround is required for now.",
+          "PERF: MI355X single-stream 67 tok/s and long-ctx TPOT near-flat 14.4->18.9ms (8k->256k) BEAT MI300X (48 tok/s, 18.9->24.2ms); c64 throughput 1009 tok/s vs MI300X 528."
+        ],
+        "provenance": {
+          "image": null,
+          "pr": "https://github.com/sgl-project/sglang/pull/28471",
+          "sglang": "0.5.13.post1.dev20260622 (g4923bb93ae), editable + 2 mandatory gfx950 bpreshuffle disables (fp8_utils.py + deepseek_common/utils.py); MQA-logits env left at its correct GLM-5.2 default (False)",
+          "aiter": "7d604afe5; SGLANG_USE_AITER=1; bpreshuffle gfx95 path disabled in source (both sites)",
+          "rocm": "7.2.0",
+          "date": "2026-06-24",
+          "node": "mia1-p02-g45, 8x MI355X (gfx950), 288 GiB each; PyTorch 2.9.1+rocm7.2.0"
+        }
       }
     ],
     "gaps": [
-      {
-        "title": "gfx950 (MI355X) FP8",
-        "kind": "hardware",
-        "note": "Same recipe on MI355X is unmeasured. The block-FP8 GEMM accuracy bug is gfx950-only — re-run GSM8K first to confirm numerics before trusting perf.",
-        "cmd": "# GSM8K (chat + thinking)\npython3 -m sglang.test.run_eval --port 30000 --eval-name gsm8k \\\n  --thinking-mode glm-45 --max-tokens 8192 --temperature 0 --num-examples 1319"
-      },
       {
         "title": "balanced / high-throughput",
         "kind": "strategy",
