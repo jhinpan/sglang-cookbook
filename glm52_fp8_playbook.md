@@ -204,7 +204,7 @@ sgl-eval run aime25 --api-key EMPTY --base-url http://localhost:30000/v1 \
 | **GSM8K** (n=1319) | **97.2%** | **97.7%** | 98.2% | parity ✓ on both — FP8 numerics healthy (MI355X requires the §1b patches) |
 | **AIME25** (`sgl-eval`, avg@16) | **90.6%** (95% CI 88.6–92.6) | **91.5%** (95% CI 89.1–93.8) | 87.7% | both **≈ parity within noise**, both beat ref. MI300X: pass@16 100%, majority@16 96.7%, trunc 0%. MI355X: pass@16 100%, majority@16 93.3%, trunc 0.21%, error 0% (n=30×16, 9.46M completion tok) |
 
-> **Same model, same recipe, same numerics:** MI355X (gfx950) matches MI300X (gfx942) on accuracy **once the three §1b source patches are applied**. Without them GSM8K on gfx950 is ~0.0 — the gap is a kernel miscompile, not a real model/accuracy difference.
+> **Same model, same recipe, same numerics:** MI355X (gfx950) matches MI300X (gfx942) on accuracy **once the two mandatory §1b bpreshuffle patches are applied**. Without them GSM8K on gfx950 is ~0.0 — the gap is a kernel miscompile, not a real model/accuracy difference.
 >
 > **Harness caveat (important):** with the **same model/server/settings**, the in-tree `sglang.test.run_eval --eval-name aime25` reports only **62.5%** because its `ANSWER_PATTERN = (?i)Answer\s*:\s*(...)` first-match regex grabs an intermediate "Answer:" from the reasoning trace or misses non-`Answer:` formats → false zeros. `sgl-eval` (NV's official harness) reports the real ~90% with a near-zero `truncated_rate` (MI300X 0%, MI355X 0.21%). Always use **`sgl-eval`** for AIME-style answer-extraction evals; the in-tree simple-evals are not reliable for this model.
 
@@ -227,7 +227,7 @@ sgl-eval run aime25 --api-key EMPTY --base-url http://localhost:30000/v1 \
 | B300 (MTP) | balanced | 64 | 6,465 | 23.36 | 245 |
 | GB300 (MTP) | low-latency | 1 | 393 | 2.78 | 79 |
 
-**Takeaways:** ① FP8 works on **MI300X** out-of-the-box on stock SGLang ≥0.5.13.post1 + DSA tilelang; **MI355X** needs the three §1b source patches but then runs the identical recipe. ② Accuracy is at parity on both (GSM8K 97.2% / 97.7% vs 98.2% ref; AIME25 ≈90% via sgl-eval). ③ **MI355X is ~1.4–1.9× faster than MI300X** (single-stream 67 vs 48 tok/s; c64 1009 vs 528 tok/s). ④ Both still trail NV ~3–4× on decode, primarily because AMD has **no MTP** here (NV numbers include EAGLE MTP) plus per-GPU HW differences. ⑤ Clear next levers: enable MTP/spec when supported on AMD, add DP-attention + DeepEP, and raise the prefill chunk size to cut TTFT.
+**Takeaways:** ① FP8 works on **MI300X** out-of-the-box on stock SGLang ≥0.5.13.post1 + DSA tilelang; **MI355X** needs the two mandatory §1b bpreshuffle patches but then runs the identical recipe. ② Accuracy is at parity on both (GSM8K 97.2% / 97.7% vs 98.2% ref; AIME25 ≈90% via sgl-eval). ③ **MI355X is ~1.4–1.9× faster than MI300X** (single-stream 67 vs 48 tok/s; c64 1009 vs 528 tok/s). ④ Both still trail NV ~3–4× on decode, primarily because AMD has **no MTP** here (NV numbers include EAGLE MTP) plus per-GPU HW differences. ⑤ Clear next levers: enable MTP/spec when supported on AMD, add DP-attention + DeepEP, and raise the prefill chunk size to cut TTFT.
 
 ## 7. Long-context (GLM-5.2 = DSA + 1M context)
 
