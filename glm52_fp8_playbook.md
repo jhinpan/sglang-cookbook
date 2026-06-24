@@ -8,13 +8,13 @@ Single-node **TP=8** deployment of `zai-org/GLM-5.2-FP8` on **8× AMD Instinct**
 > |---|---|---|
 > | VRAM/GPU | 192 GiB | 288 GiB |
 > | Launch flags | identical (§1) | **identical (§1)** |
-> | Source patches needed | **none** | **3 patches first** (§1b) — else GSM8K ≈ 0.0 |
+> | Source patches needed | **none** | **2 patches first** (§1b) — else GSM8K ≈ 0.0 |
 > | GSM8K (n=1319) | 97.2% | 97.7% |
 > | AIME25 (sgl-eval, avg@16) | 90.6% | **91.5%** |
 > | Single-stream decode | 48 tok/s | **67 tok/s** |
 > | c64 throughput | 528 tok/s | **1009 tok/s** |
 >
-> **The launch command is the same on both.** The ONLY MI355X-specific step is applying the three gfx950 source fixes in §1b before the first launch. Everything else in this playbook applies to both unless a section says otherwise.
+> **The launch command is the same on both.** The ONLY MI355X-specific step is applying the two mandatory gfx950 bpreshuffle patches in §1b before the first launch. Everything else in this playbook applies to both unless a section says otherwise.
 
 > GLM-5.2 shares the DeepSeek-V3.2 / GLM-5.1 `glm_moe_dsa` architecture (MLA + **DeepSeek Sparse Attention, "DSA"**). The model code and DSA tilelang backend are already upstream in SGLang ≥ 0.5.13.post1 — **no special branch needed**. The AMD cookbook page is tracked in SGLang PR [#28471](https://github.com/sgl-project/sglang/pull/28471).
 
@@ -25,7 +25,7 @@ Single-node **TP=8** deployment of `zai-org/GLM-5.2-FP8` on **8× AMD Instinct**
 | GPUs | **MI300X:** 8× gfx942, 192 GiB each (~1.65 TB) · **MI355X:** 8× gfx950, 288 GiB each (~2.3 TB) |
 | ROCm | 7.2.0 |
 | PyTorch | 2.9.1+rocm7.2.0 |
-| SGLang | 0.5.13.post1 (MI300X `g3975ea5ac7`; MI355X `g4923bb93ae` editable + 3 gfx950 source fixes, see §1b) |
+| SGLang | 0.5.13.post1 (MI300X `g3975ea5ac7`; MI355X `g4923bb93ae` editable + 2 mandatory gfx950 bpreshuffle patches, see §1b) |
 | tilelang | 0.1.7.post3 |
 | aiter | enabled (`SGLANG_USE_AITER=1`), ships `glm5_bf16_tuned_gemm.csv`; on gfx950 the bpreshuffle block-FP8 path is force-disabled in source (§1b) |
 | Image | `rocm/sgl-dev:v0.5.13.post1-rocm720-mi30x-20260620` (AMD ROCm 7.2 build; covers gfx942 **and** gfx950; sglang @ `a51d56d948`, aiter @ `7d604afe`) |
@@ -36,8 +36,8 @@ Key container env (from this run): `SGLANG_USE_AITER=1`, `SGLANG_USE_ROCM700A=1`
 ### Why FP8 (both GPUs)
 GLM-5.2 **BF16** weights are ~1.4 TB → ~175 GB/GPU across 8 GPUs, leaving only ~17–31 GB/GPU on MI300X (192 GiB) for KV cache + activations + CUDA graphs. BF16 **does not fit single-node on MI300X** (only MI325X/MI355X). FP8 (704 GB → 88 GB/GPU) fits comfortably on both MI300X and MI355X. No FP4 checkpoint exists. We use FP8 on both for an apples-to-apples comparison.
 
-### gfx942 is safe; gfx950 needs three patches
-The block-FP8 GEMM accuracy bug from PR #28471 affects **gfx950 (MI350X/MI355X)** only — **gfx942 (MI300X) is unaffected** (GSM8K confirms healthy numerics with no patches). On **gfx950 you MUST apply the three source fixes in §1b first**, or GSM8K collapses to ~0.0. Once patched, gfx950 reaches the same accuracy as gfx942.
+### gfx942 is safe; gfx950 needs two patches
+The block-FP8 GEMM accuracy bug from PR #28471 affects **gfx950 (MI350X/MI355X)** only — **gfx942 (MI300X) is unaffected** (GSM8K confirms healthy numerics with no patches). On **gfx950 you MUST apply the two bpreshuffle patches in §1b first**, or GSM8K collapses to ~0.0. Once patched, gfx950 reaches the same accuracy as gfx942.
 
 ## 1. Launch the server (TP=8, DSA tilelang)
 
@@ -72,51 +72,52 @@ python3 -m sglang.launch_server \
 
 Server comes up with `max_total_num_tokens≈691904`, `context_len=1048576` on MI300X (≈1417344 on MI355X — bigger KV pool from 288 GiB GPUs).
 
-## 1b. MI355X (gfx950) — apply THREE source fixes FIRST
+## 1b. MI355X (gfx950) — apply TWO mandatory source patches FIRST
 
-> **MI300X users: skip this section.** gfx942 never touches the broken kernel paths; the §1 command works as-is. **MI355X users: these three patches are mandatory** — without them GSM8K collapses to ~0.0 with token-garbage, and long-context attention corrupts. The launch command itself is **identical to §1** (same flags); only these source patches differ.
+> **MI300X users: skip this section.** gfx942 never touches the broken kernel paths; the §1 command works as-is. **MI355X users: the two bpreshuffle patches below are mandatory** — without them GSM8K collapses to ~0.0 with token-garbage. The launch command itself is **identical to §1** (same flags); only these source patches differ. (`SGLANG_USE_AITER=1` is set on both — via the container env / `test_glm52_fp8.sh` on MI300X, and explicitly here.)
 
 The SGLang install is editable, so patches take effect at the **next server start — no rebuild**. Run this once:
 
 ```bash
 SRT=$(python3 -c 'import os,sglang.srt as m; print(os.path.dirname(m.__file__))')
 
-# Fix #1 — block-FP8 bpreshuffle GEMM is miscompiled on gfx950/ROCm 7.2 (sglang #28685).
+# Patch #1 — block-FP8 bpreshuffle GEMM is miscompiled on gfx950/ROCm 7.2 (sglang #28685).
 # ROCm 7.2 hipcc drops `-mllvm -amdgpu-coerce-illegal-types` on aiter
 # gemm_a8w8_blockscale_bpreshuffle → silently wrong output. Force the gate OFF.
 sed -i 's/^_use_aiter_bpreshuffle_gfx95 = .*/_use_aiter_bpreshuffle_gfx95 = False  # FORCED OFF (gfx950 #28685)/' \
   "$SRT/layers/quantization/fp8_utils.py"
 
-# Fix #1b — SAME flag, SECOND definition. GLM-5.2 is GlmMoeDsaForCausalLM →
-# DeepseekV2ForCausalLM, and deepseek_v4.py reads the flag from HERE, not from
-# fp8_utils.py. Patching only Fix #1 leaves the model forward path broken →
-# GSM8K still 0.0. THIS is the one that's easy to miss.
+# Patch #1b — SAME flag, SECOND definition. GLM-5.2 is GlmMoeDsaForCausalLM →
+# DeepseekV2ForCausalLM (models/glm4_moe.py), and its MLA/activation-quant path
+# reads the flag from deepseek_common/utils.py, NOT from fp8_utils.py. Patching
+# only #1 leaves GSM8K=0.0. THIS is the one that's easy to miss.
 sed -i 's/^_use_aiter_bpreshuffle_gfx95 = .*/_use_aiter_bpreshuffle_gfx95 = False  # FORCED OFF (gfx950 #28685)/' \
   "$SRT/models/deepseek_common/utils.py"
 
-# Fix #2 — long-context. server_args.py force-sets
-# SGLANG_FP8_PAGED_MQA_LOGITS_TORCH=True in the is_hip branch, and
-# EnvField.set() writes os.environ UNCONDITIONALLY → a shell `export …=0` is
-# clobbered at startup and can never win. Make it env-aware (default False).
-python3 - "$SRT/server_args.py" <<'PY'
-import sys; p=sys.argv[1]; L=open(p).read().split("\n"); hip=False
-for i,l in enumerate(L):
-    s=l.strip()
-    if s=='elif is_hip():': hip=True; continue
-    if hip and (s.startswith('elif ') or s.startswith('else:')): hip=False
-    if hip and 'SGLANG_FP8_PAGED_MQA_LOGITS_TORCH.set(True)' in l:
-        ind=l[:len(l)-len(l.lstrip())]
-        L[i]=ind+'if not envs.SGLANG_FP8_PAGED_MQA_LOGITS_TORCH.is_set():\n'+ind+'    envs.SGLANG_FP8_PAGED_MQA_LOGITS_TORCH.set(False)'
-        break
-open(p,'w').write("\n".join(L))
-PY
-
-# Verify all three:
-grep -n '^_use_aiter_bpreshuffle_gfx95' "$SRT/layers/quantization/fp8_utils.py" "$SRT/models/deepseek_common/utils.py"
-grep -n 'SGLANG_FP8_PAGED_MQA_LOGITS_TORCH.is_set' "$SRT/server_args.py"
+# Verify BOTH now say "= False" (the fix is the VALUE, not just the variable name):
+grep -n '^_use_aiter_bpreshuffle_gfx95' \
+  "$SRT/layers/quantization/fp8_utils.py" "$SRT/models/deepseek_common/utils.py"
 ```
 
-Then launch with the **exact same §1 command** (also `export SGLANG_USE_AITER=1`).
+Then launch with the **exact same §1 command** plus `export SGLANG_USE_AITER=1`.
+
+> **Optional — only if you ALSO serve DeepSeek-V4 from this tree.**
+> `SGLANG_FP8_PAGED_MQA_LOGITS_TORCH` must be `False` for long-context correctness. **For GLM-5.2 this is already the default and needs no patch:** the `.set(True)` line in `server_args.py` lives in the `model_arch in ["DeepseekV4ForCausalLM"]` branch (~line 3786), but GLM-5.2's `model_arch` is `GlmMoeDsaForCausalLM`, so that branch never runs and the global `EnvBool` default (`False`) holds. We verified a long-context needle-recall **PASS** on the stock default with no patch. Apply the env-aware patch below **only** if you serve DeepSeek-V4 from the same source tree (there `.set(True)` would otherwise clobber a shell `export …=0`):
+>
+> ```bash
+> python3 - "$SRT/server_args.py" <<'PY'
+> import sys; p=sys.argv[1]; L=open(p).read().split("\n"); hip=False
+> for i,l in enumerate(L):
+>     s=l.strip()
+>     if s=='elif is_hip():': hip=True; continue
+>     if hip and (s.startswith('elif ') or s.startswith('else:')): hip=False
+>     if hip and 'SGLANG_FP8_PAGED_MQA_LOGITS_TORCH.set(True)' in l:
+>         ind=l[:len(l)-len(l.lstrip())]
+>         L[i]=ind+'if not envs.SGLANG_FP8_PAGED_MQA_LOGITS_TORCH.is_set():\n'+ind+'    envs.SGLANG_FP8_PAGED_MQA_LOGITS_TORCH.set(False)'
+>         break
+> open(p,'w').write("\n".join(L))
+> PY
+> ```
 
 **Why these are gfx950-only:**
 - The bpreshuffle kernel miscompile is **M-tile-sensitive** (wrong rows cluster at 16-row tile boundaries and shift run-to-run), so a `bs=1` single-token answer can look *correct* while batched/longer prompts corrupt — it is **one** bug, not a separate "batching bug." Don't trust a passing smoke test alone; run GSM8K.
@@ -201,11 +202,11 @@ sgl-eval run aime25 --api-key EMPTY --base-url http://localhost:30000/v1 \
 | Benchmark | MI300X (gfx942) | MI355X (gfx950) | Cookbook ref | Notes |
 |-----------|-----------------|-----------------|--------------|-------|
 | **GSM8K** (n=1319) | **97.2%** | **97.7%** | 98.2% | parity ✓ on both — FP8 numerics healthy (MI355X requires the §1b patches) |
-| **AIME25** (`sgl-eval`, avg@16) | **90.6%** (95% CI 88.6–92.6) | **91.5%** (95% CI 89.1–93.9) | 87.7% | both **≈ parity within noise**, both beat ref. MI300X: pass@16 100%, majority@16 96.7%, trunc 0%. MI355X: pass@16 100%, majority@16 93.3%, trunc 0.21%, error 0% (n=30×16, 9.46M completion tok) |
+| **AIME25** (`sgl-eval`, avg@16) | **90.6%** (95% CI 88.6–92.6) | **91.5%** (95% CI 89.1–93.8) | 87.7% | both **≈ parity within noise**, both beat ref. MI300X: pass@16 100%, majority@16 96.7%, trunc 0%. MI355X: pass@16 100%, majority@16 93.3%, trunc 0.21%, error 0% (n=30×16, 9.46M completion tok) |
 
 > **Same model, same recipe, same numerics:** MI355X (gfx950) matches MI300X (gfx942) on accuracy **once the three §1b source patches are applied**. Without them GSM8K on gfx950 is ~0.0 — the gap is a kernel miscompile, not a real model/accuracy difference.
 >
-> **Harness caveat (important):** with the **same model/server/settings**, the in-tree `sglang.test.run_eval --eval-name aime25` reports only **62.5%** because its `ANSWER_PATTERN = (?i)Answer\s*:\s*(...)` first-match regex grabs an intermediate "Answer:" from the reasoning trace or misses non-`Answer:` formats → false zeros. `sgl-eval` (NV's official harness) reports the real ~90% with `truncated_rate=0%`. Always use **`sgl-eval`** for AIME-style answer-extraction evals; the in-tree simple-evals are not reliable for this model.
+> **Harness caveat (important):** with the **same model/server/settings**, the in-tree `sglang.test.run_eval --eval-name aime25` reports only **62.5%** because its `ANSWER_PATTERN = (?i)Answer\s*:\s*(...)` first-match regex grabs an intermediate "Answer:" from the reasoning trace or misses non-`Answer:` formats → false zeros. `sgl-eval` (NV's official harness) reports the real ~90% with a near-zero `truncated_rate` (MI300X 0%, MI355X 0.21%). Always use **`sgl-eval`** for AIME-style answer-extraction evals; the in-tree simple-evals are not reliable for this model.
 
 ## 6. Comparison vs NVIDIA (SGLang cookbook, GLM-5.2-FP8, ISL 8192 / OSL 1024)
 
