@@ -2,7 +2,7 @@
 
 Single-node **TP=8** deployment of `zai-org/GLM-5.2-FP8` on **8× AMD Instinct** GPUs with SGLang, using the **DSA tilelang** attention backend. Verified end-to-end on **both** MI300X (gfx942) and MI355X (gfx950): server, latency, throughput, and accuracy (GSM8K, AIME25).
 
-> **Which GPU am I on?** `rocm-smi --showproductname` → `gfx942` = MI300X, `gfx950` = MI355X.
+> **Which GPU am I on?** `rocminfo | grep -m1 gfx` (or `rocm-smi --showproductname` for the marketing name) → `gfx942` = MI300X, `gfx950` = MI355X.
 >
 > | | MI300X (gfx942) | MI355X (gfx950) |
 > |---|---|---|
@@ -147,11 +147,15 @@ python3 -m sglang.bench_one_batch \
   --trust-remote-code --batch-size 1 --input-len 8192 --output-len 1024
 ```
 
+**MI300X (gfx942):**
+
 | Metric | bs=1, ISL 8192 / OSL 1024 |
 |--------|---------------------------|
 | Prefill latency | **1.328 s** (6,170 tok/s) |
 | Decode | **19.6 ms/token** (51.0 tok/s) |
 | Total (8192 in + 1024 out) | 21.40 s (430.7 tok/s) |
+
+> MI355X `bench_one_batch` not captured separately; see the §4 `bench_serving` conc=1 numbers (single-stream decode 14.4 ms/token / 66.9 tok/s) for the MI355X single-request figure.
 
 ## 4. Throughput — `sglang.bench_serving` (online, vs concurrency)
 
